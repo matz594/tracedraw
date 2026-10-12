@@ -516,7 +516,7 @@ const LS = {
   get(k, d) { try { const v = localStorage.getItem('td:' + k); return v == null ? d : JSON.parse(v); } catch { return d; } },
   set(k, v) { try { localStorage.setItem('td:' + k, JSON.stringify(v)); } catch {} }
 };
-const prefs = Object.assign({ lastTr: 40, bg: 'black', grid: 'white', haptics: true, camera: true }, LS.get('prefs', {}));
+const prefs = Object.assign({ lastTr: 40, bg: 'black', grid: 'white', haptics: true, camera: true, camId: null }, LS.get('prefs', {}));
 const savePrefs = () => LS.set('prefs', prefs);
 
 const DB = {
@@ -939,18 +939,25 @@ function attachGestures(cv, onTap) {
   const pair = () => { const [a, b] = Array.from(pts.values()); return { d: Math.hypot(b.x - a.x, b.y - a.y), a: Math.atan2(b.y - a.y, b.x - a.x) }; };
   const rebase = () => { baseG = { t: { ...S.transform }, c: centroid(), ...(pts.size >= 2 ? pair() : {}) }; };
   const interactive = () => !S.locked && !S.menuOpen;
+  // Punkt in Koordinaten der (ggf. gedrehten) Abpaus-Ansicht umrechnen
+  const P = e => {
+    const r = cv.id === 'traceCanvas' ? Stage.r * DEG : 0;
+    if (!r) return { x: e.clientX, y: e.clientY };
+    const c = Math.cos(-r), sn = Math.sin(-r);
+    return { x: e.clientX * c - e.clientY * sn, y: e.clientX * sn + e.clientY * c };
+  };
 
   cv.addEventListener('pointerdown', e => {
     downAt = performance.now(); downPos = { x: e.clientX, y: e.clientY };
     if (!interactive()) return;
     try { cv.setPointerCapture(e.pointerId); } catch {}
     if (pts.size === 0) { before = snap(); moved = false; }
-    pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    pts.set(e.pointerId, P(e));
     rebase();
   });
   cv.addEventListener('pointermove', e => {
     if (!pts.has(e.pointerId) || !interactive()) return;
-    pts.get(e.pointerId).x = e.clientX; pts.get(e.pointerId).y = e.clientY;
+    const q = P(e); pts.get(e.pointerId).x = q.x; pts.get(e.pointerId).y = q.y;
     const w = cv.clientWidth, h = cv.clientHeight;
     const c = centroid();
     const t = { ...baseG.t };
@@ -1100,7 +1107,7 @@ $('#edTabs').onclick = e => {
   renderPanel();
 };
 bindControls($('#edPanel'));
-$('#trPanel').innerHTML = `<label class="switch-row"><span class="tx"><b>Kamera</b><small>Zeigt das Blatt unter dem Handy, das Bild liegt darüber</small></span><span class="switch"><input type="checkbox" id="t-camera"><span></span></span></label><div class="divider"></div>` + imageCtls('t') + '<div class="divider"></div>' + gridCtls('t') + '<div class="divider"></div><p class="group-label" id="trPosLabel">Lage</p>' + positionCtls('t') +
+$('#trPanel').innerHTML = `<label class="switch-row"><span class="tx"><b>Kamera</b><small>Zeigt das Blatt unter dem Handy, das Bild liegt darüber</small></span><span class="switch"><input type="checkbox" id="t-camera"><span></span></span></label><button class="btn" id="trCamSwitch" hidden>Andere Kamera verwenden</button><div class="divider"></div>` + imageCtls('t') + '<div class="divider"></div>' + gridCtls('t') + '<div class="divider"></div><p class="group-label" id="trPosLabel">Lage</p>' + positionCtls('t') +
   '<div id="trLockArea"></div><button class="btn danger" id="trExit2"><svg class="i"><use href="#i-exit"/></svg>Abpaus-Modus beenden</button>';
 bindControls($('#trPanel'));
 
@@ -1131,8 +1138,8 @@ function updateEditorChrome() {
   const lb = $('#trLockBtn'); if (lb) lb.onclick = () => { lockImage(); closeMenu(); };
   $$('[data-pos]').forEach(f => f.disabled = S.locked);
 }
-function lockImage() { S.locked = true; vibrate(40); updateEditorChrome(); saveProjectNow(); toast('Bild gesperrt – es kann nicht mehr verrutschen'); }
-function unlockImage() { S.locked = false; vibrate([30, 40, 30]); updateEditorChrome(); saveProjectNow(); toast('Bild entsperrt'); }
+function lockImage() { S.locked = true; Cam.holdFocus(true); vibrate(40); updateEditorChrome(); saveProjectNow(); toast('Bild gesperrt – es kann nicht mehr verrutschen'); }
+function unlockImage() { S.locked = false; Cam.holdFocus(false); vibrate([30, 40, 30]); updateEditorChrome(); saveProjectNow(); toast('Bild entsperrt'); }
 function confirmUnlock() {
   dialog('Bild entsperren?', 'Danach lassen sich Position, Größe und Drehung wieder verändern.', [
     { label: 'Abbrechen' }, { label: 'Entsperren', kind: 'primary', run: unlockImage }
@@ -1146,7 +1153,7 @@ attachGestures($('#previewCanvas'), () => { if (S.locked) toast('Bild ist gesper
 
 /* ---------------- Kamera ---------------- */
 const Cam = {
-  on: false, stream: null, torch: false,
+  on: false, stream: null, torch: false, deviceId: null,
   async start() {
     const note = $('#camNote');
     note.hidden = true;
@@ -1155,10 +1162,29 @@ const Cam = {
       return;
     }
     try {
-      this.stream = await navigator.mediaDevices.getUserMedia({
-        audio: false,
-        video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } }
-      });
+      if (this.stream) this.stream.getTracks().forEach(t => t.stop());
+      const size = { width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 30 } };
+      const wanted = this.deviceId || prefs.camId;
+      try {
+        this.stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: wanted ? { deviceId: { exact: wanted }, ...size } : { facingMode: { ideal: 'environment' }, ...size } });
+      } catch (e) {
+        if (!wanted || e.name === 'NotAllowedError') throw e;
+        prefs.camId = null; this.deviceId = null; savePrefs();
+        this.stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { ideal: 'environment' }, ...size } });
+      }
+      // Beim ersten Start: festes Hauptobjektiv statt automatischem Objektivwechsel (Ultraweitwinkel/Makro) wählen
+      if (!wanted) {
+        const main = await this.mainBackCamera();
+        const cur = this.stream.getVideoTracks()[0];
+        const curId = cur && cur.getSettings ? cur.getSettings().deviceId : null;
+        if (main && main !== curId) {
+          this.stream.getTracks().forEach(t => t.stop());
+          this.stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { deviceId: { exact: main }, ...size } });
+        }
+        const t2 = this.stream.getVideoTracks()[0];
+        this.deviceId = (t2 && t2.getSettings && t2.getSettings().deviceId) || main || null;
+        if (this.deviceId) { prefs.camId = this.deviceId; savePrefs(); }
+      }
       const v = $('#cam');
       v.srcObject = this.stream; v.hidden = false;
       await v.play().catch(() => {});
@@ -1166,6 +1192,10 @@ const Cam = {
       const track = this.stream.getVideoTracks()[0];
       const caps = track && track.getCapabilities ? track.getCapabilities() : {};
       $('#trTorch').hidden = !caps.torch;
+      // Zoom auf festen Wert setzen, damit sich der Bildausschnitt nicht verändert
+      if (caps.zoom) track.applyConstraints({ advanced: [{ zoom: Math.max(caps.zoom.min, Math.min(caps.zoom.max, 1)) }] }).catch(() => {});
+      if (S.locked) this.holdFocus(true);
+      this.updateSwitch();
       track && track.addEventListener('ended', () => { if (S.view === 'trace' && prefs.camera) this.start(); });
     } catch (e) {
       const denied = e && (e.name === 'NotAllowedError' || e.name === 'SecurityError');
@@ -1189,6 +1219,43 @@ const Cam = {
     $('#trTorch').hidden = true;
     this.sync(); draw();
   },
+  async backCameras() {
+    try {
+      const all = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === 'videoinput');
+      const back = all.filter(d => /back|rück|rear|environment|facing back|hinten/i.test(d.label));
+      return back.length ? back : all;
+    } catch { return []; }
+  },
+  async mainBackCamera() {
+    const back = await this.backCameras();
+    const plain = back.filter(d => /back|rück|rear|facing back|hinten/i.test(d.label) && !/ultra|tele|dual|triple|wide|weitwinkel|makro|macro|depth|tiefe/i.test(d.label));
+    return (plain[0] || null) && plain[0].deviceId;
+  },
+  async next() {
+    const cams = await this.backCameras();
+    if (cams.length < 2) { toast('Nur eine Kamera verfügbar'); return; }
+    const i = cams.findIndex(c => c.deviceId === this.deviceId);
+    const n = cams[(i + 1) % cams.length];
+    this.deviceId = n.deviceId; prefs.camId = n.deviceId; savePrefs();
+    await this.start();
+    toast(n.label ? 'Kamera: ' + n.label : 'Kamera gewechselt');
+  },
+  async updateSwitch() {
+    const b = $('#trCamSwitch'); if (!b) return;
+    b.hidden = !this.on || (await this.backCameras()).length < 2;
+  },
+  /* Schärfe festhalten, sobald das Bild gesperrt ist – verhindert „Pumpen“ beim Nachfokussieren */
+  holdFocus(hold) {
+    const track = this.stream && this.stream.getVideoTracks()[0];
+    if (!track || !track.getCapabilities) return;
+    const caps = track.getCapabilities();
+    const modes = caps.focusMode || [];
+    const set = hold ? (modes.includes('manual') ? 'manual' : modes.includes('single-shot') ? 'single-shot' : null) : (modes.includes('continuous') ? 'continuous' : null);
+    if (!set) return;
+    const c = { focusMode: set };
+    if (set === 'manual') { const st = track.getSettings(); if (st.focusDistance != null) c.focusDistance = st.focusDistance; }
+    track.applyConstraints({ advanced: [c] }).catch(() => {});
+  },
   async setTorch(onOff) {
     const track = this.stream && this.stream.getVideoTracks()[0];
     if (!track) return;
@@ -1204,6 +1271,7 @@ const Cam = {
 };
 $('#trCamBtn').onclick = () => { prefs.camera = !Cam.on; savePrefs(); prefs.camera ? Cam.start() : Cam.stop(); };
 $('#trTorch').onclick = () => Cam.setTorch(!Cam.torch);
+document.addEventListener('click', e => { if (e.target.closest('#trCamSwitch')) Cam.next(); });
 document.addEventListener('change', e => {
   if (e.target.id !== 't-camera') return;
   prefs.camera = e.target.checked; savePrefs();
@@ -1214,6 +1282,42 @@ document.addEventListener('visibilitychange', () => {
 });
 
 /* ---------------- Abpaus-Modus ---------------- */
+/* Fixiert Größe und Ausrichtung der Abpaus-Ansicht. Liegt das Handy flach, kippt der Browser sonst
+   ständig zwischen Hoch- und Querformat, und die Browserleiste ändert die Höhe – beides verschiebt Bild und Kamera. */
+const Stage = {
+  f: null, r: 0,
+  angle() {
+    if (screen.orientation && typeof screen.orientation.angle === 'number') return screen.orientation.angle;
+    if (typeof window.orientation === 'number') return window.orientation;
+    return null;
+  },
+  freeze() {
+    this.f = { w: window.innerWidth, h: window.innerHeight, a: this.angle() };
+    this.apply();
+  },
+  release() {
+    this.f = null; this.r = 0;
+    const t = $('#trace');
+    ['width', 'height', 'left', 'top', 'right', 'bottom', 'transform', 'transformOrigin', 'inset'].forEach(k => t.style[k] = '');
+  },
+  apply() {
+    const f = this.f; if (!f) return;
+    const vw = window.innerWidth, vh = window.innerHeight, a = this.angle();
+    let r = 0;
+    if (a !== null && f.a !== null) { r = -(a - f.a); r = ((r % 360) + 540) % 360 - 180; }
+    if (r === 0 && (vw > vh) !== (f.w > f.h) && navigator.maxTouchPoints > 0) r = 90;
+    this.r = r;
+    const t = $('#trace');
+    Object.assign(t.style, {
+      inset: 'auto', right: 'auto', bottom: 'auto',
+      width: f.w + 'px', height: f.h + 'px',
+      left: (vw - f.w) / 2 + 'px', top: (vh - f.h) / 2 + 'px',
+      transformOrigin: '50% 50%', transform: r ? `rotate(${r}deg)` : ''
+    });
+  }
+};
+window.addEventListener('resize', () => { if (S.view === 'trace') Stage.apply(); });
+window.addEventListener('orientationchange', () => { if (S.view === 'trace') setTimeout(() => Stage.apply(), 250); });
 let wakeLock = null;
 async function requestWake() {
   try { if ('wakeLock' in navigator) { wakeLock = await navigator.wakeLock.request('screen'); } } catch { wakeLock = null; }
@@ -1229,6 +1333,9 @@ async function enterTrace() {
     if (el.requestFullscreen && !document.fullscreenElement) await el.requestFullscreen({ navigationUI: 'hide' });
     if (screen.orientation && screen.orientation.lock) await screen.orientation.lock(screen.orientation.type).catch(() => {});
   } catch {}
+  // Größe erst nach dem Wechsel ins Vollbild festhalten
+  await new Promise(r => setTimeout(r, 350));
+  if (S.view === 'trace') Stage.freeze();
   requestWake();
   if (prefs.camera) Cam.start(); else Cam.sync();
   setTimeout(draw, 250);
@@ -1242,6 +1349,7 @@ function exitTrace(force) {
   }
   closeMenu();
   Cam.stop();
+  Stage.release();
   try { wakeLock && wakeLock.release(); } catch {} wakeLock = null;
   try { screen.orientation && screen.orientation.unlock && screen.orientation.unlock(); } catch {}
   if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(() => {});
