@@ -1,0 +1,1433 @@
+<title>TraceDraw</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700;12..96,800&family=Figtree:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: eine Bildschirm-App mit drei Ansichten (Start, Editor, Abpausen); Werkzeugpanel unter bzw. neben der Vorschau.
+   Bewusst nur dunkel: Konturen auf schwarzem Grund sind beim Abzeichnen am besten erkennbar. */
+:root {
+  --bg: #0A0A0F;
+  --surface: #14141D;
+  --surface-2: #1D1D29;
+  --line: #2B2A3A;
+  --fg: #F4F2FB;
+  --muted: #A2A0B8;
+  --dim: #6D6B84;
+  --accent: #8B5CF6;
+  --accent-deep: #6D3BEA;
+  --blue: #6366F1;
+  --danger: #FB7185;
+  --star: #FACC15;
+  --scrim: rgba(6, 6, 10, 0.94);
+  --font-display: "Bricolage Grotesque", "Avenir Next", "Segoe UI", system-ui, sans-serif;
+  --font-body: "Figtree", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --r-sm: 10px;
+  --r-md: 14px;
+  --r-lg: 20px;
+  color-scheme: dark;
+}
+*, *::before, *::after { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { height: 100%; margin: 0; }
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-body);
+  font-size: 15px;
+  -webkit-font-smoothing: antialiased;
+  overscroll-behavior: none;
+  -webkit-tap-highlight-color: transparent;
+}
+button, input { font: inherit; color: inherit; }
+button { cursor: pointer; border: 0; background: none; }
+button:focus-visible, input:focus-visible, label:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+.view { height: 100%; display: flex; flex-direction: column; }
+.wrap { width: 100%; max-width: 760px; margin: 0 auto; padding-inline: 18px; }
+
+/* ---------- Buttons ---------- */
+.btn {
+  min-height: 50px; padding: 0 18px; border-radius: var(--r-md);
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  font-weight: 700; font-size: 15px; background: var(--surface-2); color: var(--fg);
+  border: 1px solid var(--line); transition: transform .12s, opacity .12s, background .15s;
+}
+.btn:active { transform: scale(.98); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn.danger { background: rgba(251,113,133,.12); border-color: transparent; color: var(--danger); }
+.btn.big { min-height: 60px; font-size: 17px; border-radius: var(--r-lg); }
+.btn[disabled] { opacity: .4; pointer-events: none; }
+.icon-btn {
+  width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--surface-2); border: 1px solid var(--line); color: var(--fg); flex: none;
+}
+.icon-btn[disabled] { opacity: .35; pointer-events: none; }
+.icon-btn.on { background: var(--accent); border-color: var(--accent); }
+svg.i { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+
+/* ---------- Kopfzeile ---------- */
+.bar { display: flex; align-items: center; gap: 10px; padding-block: 10px; }
+.bar h2 { flex: 1; text-align: center; margin: 0; font-size: 17px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* ---------- Startseite ---------- */
+#home { overflow-y: auto; }
+#home .wrap { padding-block: 18px 48px; display: flex; flex-direction: column; gap: 14px; }
+.brand { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
+.brand h1 { font-family: var(--font-display); font-size: 30px; font-weight: 800; letter-spacing: -.02em; margin: 0; line-height: 1; }
+.brand p { margin: 3px 0 0; color: var(--muted); font-size: 13px; }
+.brand .grow { flex: 1; }
+.logo { width: 46px; height: 46px; position: relative; flex: none; }
+.logo i { position: absolute; width: 36px; height: 36px; border-radius: 11px; }
+.logo i:first-child { right: 0; top: 0; background: var(--blue); opacity: .5; }
+.logo i:last-child { left: 0; bottom: 0; background: var(--accent); display: grid; place-items: center; }
+
+.hero {
+  position: relative; overflow: hidden; text-align: left; width: 100%;
+  background: var(--accent-deep); border-radius: 26px; padding: 28px 22px; color: #fff;
+  display: flex; flex-direction: column; align-items: flex-start; gap: 4px;
+}
+.hero::before { content: ""; position: absolute; width: 260px; height: 260px; border-radius: 50%; background: var(--blue); opacity: .55; right: -90px; top: -120px; }
+.hero::after {
+  content: ""; position: absolute; inset: 0; opacity: .18;
+  background-image: linear-gradient(rgba(255,255,255,.6) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.6) 1px, transparent 1px);
+  background-size: 28px 28px; mask-image: linear-gradient(110deg, transparent 45%, #000 100%); -webkit-mask-image: linear-gradient(110deg, transparent 45%, #000 100%);
+}
+.hero > * { position: relative; z-index: 1; }
+.hero .hi { width: 58px; height: 58px; border-radius: 17px; background: rgba(255,255,255,.18); display: grid; place-items: center; margin-bottom: 14px; }
+.hero .hi svg { width: 28px; height: 28px; }
+.hero strong { font-family: var(--font-display); font-size: 26px; font-weight: 800; letter-spacing: -.01em; }
+.hero span { color: rgba(255,255,255,.85); font-size: 14px; }
+.hero:active { transform: scale(.99); }
+
+.quick { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.tile {
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg);
+  padding: 16px; min-height: 92px; display: flex; flex-direction: column; align-items: flex-start; justify-content: space-between; text-align: left; gap: 8px; position: relative;
+}
+.tile svg { color: var(--accent); }
+.tile b { font-size: 14px; }
+.tile .count { position: absolute; top: 16px; right: 16px; color: var(--muted); font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; }
+
+.sec-title { font-size: 18px; font-weight: 700; margin: 16px 0 0; display: flex; justify-content: space-between; align-items: baseline; }
+.sec-title small { color: var(--dim); font-size: 12px; font-weight: 500; }
+.row-scroll { display: flex; gap: 12px; overflow-x: auto; margin-inline: -18px; padding: 2px 18px 6px; scrollbar-width: none; }
+.row-scroll::-webkit-scrollbar { display: none; }
+.card { flex: none; width: 118px; text-align: left; display: flex; flex-direction: column; gap: 3px; position: relative; }
+.card .th { width: 100%; aspect-ratio: 5 / 6; border-radius: var(--r-md); background: var(--surface-2) center / cover no-repeat; border: 1px solid var(--line); }
+.card .nm { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 4px; }
+.card .dt { font-size: 11px; color: var(--dim); font-variant-numeric: tabular-nums; }
+.card .fav { position: absolute; top: 6px; right: 6px; width: 32px; height: 32px; border-radius: 50%; background: rgba(0,0,0,.55); display: grid; place-items: center; color: #fff; }
+.card .fav.on { color: var(--star); }
+.card .fav svg { width: 17px; height: 17px; }
+.card .fav.on svg { fill: currentColor; }
+.card .badge { position: absolute; left: 6px; top: 6px; font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; background: var(--accent); color: #fff; padding: 3px 7px; border-radius: 99px; }
+
+.steps { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); padding: 6px 16px; margin: 0; list-style: none; counter-reset: s; }
+.steps li { display: flex; align-items: center; gap: 12px; padding: 11px 0; font-size: 14px; counter-increment: s; }
+.steps li + li { border-top: 1px solid var(--line); }
+.steps li::before { content: counter(s); width: 24px; height: 24px; flex: none; border-radius: 50%; background: rgba(139,92,246,.16); color: var(--accent); font-size: 12px; font-weight: 800; display: grid; place-items: center; }
+.privacy { text-align: center; color: var(--dim); font-size: 12px; margin-top: 8px; }
+
+/* ---------- Editor ---------- */
+#editor .stage { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.editor-body { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 10px; padding-bottom: 12px; }
+.preview-area { flex: 1; min-height: 190px; display: grid; place-items: center; position: relative; }
+.preview { position: relative; border-radius: var(--r-lg); overflow: hidden; border: 1px solid var(--line); background: #000; max-width: 100%; }
+.preview canvas, .trace-canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+.chip {
+  position: absolute; top: 10px; left: 10px; display: flex; align-items: center; gap: 6px;
+  padding: 7px 12px; border-radius: 99px; background: rgba(29,29,41,.9); color: #fff; font-size: 12px; font-weight: 700; z-index: 2;
+}
+.chip svg { width: 15px; height: 15px; }
+.chip.on { background: var(--accent); }
+.hint { text-align: center; color: var(--muted); font-size: 12px; margin: 0; }
+.panel { display: flex; flex-direction: column; gap: 12px; min-height: 0; max-height: 50%; }
+.panel-scroll { overflow-y: auto; min-height: 0; flex-shrink: 1; display: flex; flex-direction: column; gap: 10px; padding-right: 2px; }
+@media (min-width: 900px) {
+  .editor-body { flex-direction: row; align-items: stretch; }
+  .editor-left { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 10px; }
+  .panel { width: 360px; max-height: none; }
+  #editor .wrap { max-width: 1280px; }
+}
+@media (max-width: 899px) { .editor-left { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 8px; } }
+
+.seg { display: flex; gap: 3px; padding: 3px; border-radius: var(--r-md); background: var(--surface-2); }
+.seg button { flex: 1; min-height: 40px; border-radius: var(--r-sm); color: var(--muted); font-size: 13px; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 0 6px; }
+.seg button svg { width: 17px; height: 17px; }
+.seg button.on { background: var(--accent); color: #fff; font-weight: 700; }
+
+.ctl { display: flex; flex-direction: column; gap: 2px; }
+.ctl .top { display: flex; justify-content: space-between; align-items: center; }
+.ctl label { font-size: 14px; font-weight: 600; }
+.ctl .val { min-width: 60px; text-align: center; background: var(--surface-2); border-radius: 8px; padding: 3px 8px; font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.ctl .val.reset { cursor: pointer; }
+.ctl .hints { display: flex; justify-content: space-between; color: var(--dim); font-size: 11px; margin-top: -2px; }
+input[type=range] { -webkit-appearance: none; appearance: none; width: 100%; height: 36px; background: transparent; margin: 0; --p: 50%; }
+input[type=range]::-webkit-slider-runnable-track { height: 6px; border-radius: 3px; background: linear-gradient(90deg, var(--accent) var(--p), #2F2E40 var(--p)); }
+input[type=range]::-moz-range-track { height: 6px; border-radius: 3px; background: linear-gradient(90deg, var(--accent) var(--p), #2F2E40 var(--p)); }
+input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 24px; height: 24px; border-radius: 50%; background: #fff; margin-top: -9px; box-shadow: 0 1px 6px rgba(0,0,0,.5); }
+input[type=range]::-moz-range-thumb { width: 24px; height: 24px; border-radius: 50%; background: #fff; border: 0; }
+input[type=range]:disabled { opacity: .4; }
+.switch-row { display: flex; align-items: center; gap: 12px; min-height: 50px; cursor: pointer; }
+.switch-row .tx { flex: 1; }
+.switch-row .tx b { display: block; font-size: 14px; font-weight: 600; }
+.switch-row .tx small { color: var(--muted); font-size: 12px; }
+.switch { position: relative; width: 50px; height: 30px; flex: none; }
+.switch input { opacity: 0; width: 100%; height: 100%; margin: 0; position: absolute; cursor: pointer; }
+.switch span { position: absolute; inset: 0; border-radius: 99px; background: #2F2E40; transition: background .15s; pointer-events: none; }
+.switch span::after { content: ""; position: absolute; width: 24px; height: 24px; top: 3px; left: 3px; border-radius: 50%; background: #fff; transition: transform .15s; }
+.switch input:checked + span { background: var(--accent); }
+.switch input:checked + span::after { transform: translateX(20px); }
+fieldset { border: 0; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+fieldset:disabled { opacity: .42; }
+.tools { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.tool { min-height: 62px; border-radius: var(--r-md); background: var(--surface-2); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font-size: 11px; font-weight: 600; padding: 0 2px; }
+.tool.on { background: var(--accent); }
+.tool svg { width: 20px; height: 20px; }
+.divider { height: 1px; background: var(--line); margin: 2px 0; }
+.group-label { color: var(--muted); font-size: 13px; font-weight: 600; margin: 0; }
+
+/* ---------- Abpaus-Modus ---------- */
+#trace { position: fixed; inset: 0; z-index: 20; background: #000; height: auto; }
+#trace .trace-canvas { position: absolute; inset: 0; }
+#cam { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; background: #000; }
+.cam-note { position: absolute; z-index: 2; left: 16px; right: 16px; top: calc(env(safe-area-inset-top, 0px) + 70px); margin: 0 auto; max-width: 440px; background: var(--scrim); border: 1px solid var(--line); border-radius: var(--r-md); padding: 12px 14px; font-size: 13px; line-height: 1.45; color: var(--muted); }
+.cam-note b { color: var(--fg); }
+.float { position: absolute; z-index: 3; display: flex; gap: 8px; transition: opacity .2s; }
+.float.tl { top: calc(env(safe-area-inset-top, 0px) + 12px); left: calc(env(safe-area-inset-left, 0px) + 12px); }
+.float.tr { top: calc(env(safe-area-inset-top, 0px) + 12px); right: calc(env(safe-area-inset-right, 0px) + 12px); }
+.float .icon-btn { width: 42px; height: 42px; background: rgba(29,29,41,.9); }
+.float .icon-btn svg { width: 20px; height: 20px; }
+.float .icon-btn.on { background: var(--accent); border-color: var(--accent); }
+.lockchip { height: 42px; padding: 0 14px; border-radius: 99px; background: rgba(29,29,41,.9); color: #fff; font-weight: 700; font-size: 13px; display: flex; align-items: center; gap: 7px; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+.lockchip svg { width: 17px; height: 17px; }
+.lockchip.on { background: rgba(124,58,237,.92); width: 42px; padding: 0; justify-content: center; position: relative; overflow: hidden; }
+.lockchip .fill { position: absolute; inset: 0; background: rgba(255,255,255,.35); transform: scaleY(0); transform-origin: bottom; }
+.lockchip.holding .fill { transform: scaleY(1); transition: transform .9s linear; }
+.dimmed { opacity: .4; }
+.lock-hint {
+  position: absolute; z-index: 3; left: 16px; right: 16px; margin: 0 auto; max-width: 440px;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 18px);
+  background: var(--scrim); border: 1px solid var(--line); border-radius: var(--r-lg); padding: 16px; display: flex; flex-direction: column; gap: 12px; text-align: center; font-size: 14px;
+}
+.sheet {
+  position: absolute; z-index: 5; left: 0; right: 0; bottom: 0; max-height: 64%;
+  background: rgba(13,13,19,.97); border: 1px solid var(--line); border-bottom: 0; border-radius: 26px 26px 0 0;
+  display: flex; flex-direction: column; transform: translateY(0); transition: transform .22s ease-out;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+.sheet.closed { transform: translateY(105%); pointer-events: none; }
+@media (orientation: landscape) and (min-width: 600px) {
+  .sheet { left: auto; right: 12px; width: min(440px, calc(100% - 24px)); max-height: 92%; }
+}
+.sheet-head { padding: 8px 18px 4px; display: flex; flex-direction: column; gap: 6px; }
+.sheet-head .handle { width: 40px; height: 4px; border-radius: 2px; background: #33324A; align-self: center; }
+.sheet-head .t { display: flex; align-items: center; justify-content: space-between; }
+.sheet-head h3 { margin: 0; font-size: 18px; }
+.sheet-body { overflow-y: auto; padding: 6px 18px 18px; display: flex; flex-direction: column; gap: 12px; }
+.pair { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+
+/* ---------- Zuschneiden ---------- */
+.crop-area { flex: 1; min-height: 0; position: relative; margin: 8px 0; touch-action: none; }
+.crop-area canvas { position: absolute; }
+.crop-frame { position: absolute; border: 2px solid #fff; box-shadow: 0 0 0 9999px rgba(0,0,0,.62); touch-action: none; }
+.crop-frame::before, .crop-frame::after { content: ""; position: absolute; inset: 0; pointer-events: none; }
+.crop-frame::before { border-left: 1px solid rgba(255,255,255,.45); border-right: 1px solid rgba(255,255,255,.45); left: 33.33%; right: 33.33%; }
+.crop-frame::after { border-top: 1px solid rgba(255,255,255,.45); border-bottom: 1px solid rgba(255,255,255,.45); top: 33.33%; bottom: 33.33%; }
+.crop-clip { position: absolute; overflow: hidden; }
+.h { position: absolute; width: 44px; height: 44px; margin: -22px 0 0 -22px; display: grid; place-items: center; touch-action: none; z-index: 2; }
+.h::after { content: ""; width: 22px; height: 22px; border-radius: 50%; background: var(--accent); border: 3px solid #fff; }
+.crop-meta { text-align: center; color: var(--dim); font-size: 12px; font-variant-numeric: tabular-nums; }
+.crop-actions { display: flex; flex-direction: column; gap: 10px; padding-block: 8px 14px; }
+
+/* ---------- Liste & Einstellungen ---------- */
+#library .wrap, #settings .wrap { flex: 1; overflow-y: auto; padding-block: 0 40px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 14px; margin-top: 12px; }
+.grid .card { width: auto; }
+.empty { text-align: center; color: var(--muted); padding: 60px 10px; }
+.empty b { display: block; color: var(--fg); font-size: 17px; margin-bottom: 6px; }
+.box { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+.set-label { color: var(--muted); font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; margin: 22px 0 8px; }
+
+/* ---------- Dialog & Hinweis ---------- */
+.modal { position: fixed; inset: 0; z-index: 50; background: rgba(0,0,0,.6); display: grid; place-items: center; padding: 20px; }
+.modal .dlg { width: min(380px, 100%); background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); padding: 20px; display: flex; flex-direction: column; gap: 10px; }
+.modal h3 { margin: 0; font-size: 18px; text-wrap: balance; }
+.modal p { margin: 0 0 6px; color: var(--muted); font-size: 14px; line-height: 1.45; }
+.modal .acts { display: flex; gap: 8px; flex-wrap: wrap; }
+.modal .acts .btn { flex: 1; }
+.toast { position: fixed; z-index: 60; left: 50%; top: calc(env(safe-area-inset-top, 0px) + 66px); transform: translateX(-50%); background: rgba(20,20,28,.96); border: 1px solid var(--line); padding: 10px 16px; border-radius: 99px; font-size: 13px; font-weight: 600; white-space: nowrap; max-width: calc(100% - 32px); overflow: hidden; text-overflow: ellipsis; pointer-events: none; }
+.busy { position: fixed; inset: 0; z-index: 70; background: rgba(0,0,0,.55); display: grid; place-items: center; font-weight: 600; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-images" viewBox="0 0 24 24"><rect x="3" y="5" width="15" height="13" rx="2.5"/><path d="M7 3h11a3 3 0 0 1 3 3v9"/><circle cx="8.5" cy="9.5" r="1.5"/><path d="m3 16 4.5-4 4 3.5 2.5-2 4 3.5"/></symbol>
+  <symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></symbol>
+  <symbol id="i-album" viewBox="0 0 24 24"><rect x="3" y="7" width="18" height="14" rx="2.5"/><path d="M6 4h12M8 1.5h8"/></symbol>
+  <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></symbol>
+  <symbol id="i-back" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></symbol>
+  <symbol id="i-undo" viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></symbol>
+  <symbol id="i-star" viewBox="0 0 24 24"><path d="m12 2.8 2.8 5.8 6.3.9-4.6 4.4 1.1 6.3L12 17.2l-5.6 3 1.1-6.3-4.6-4.4 6.3-.9z"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24"><rect x="4.5" y="10.5" width="15" height="10.5" rx="2.5"/><path d="M8 10.5V7a4 4 0 0 1 8 0v3.5"/></symbol>
+  <symbol id="i-unlock" viewBox="0 0 24 24"><rect x="4.5" y="10.5" width="15" height="10.5" rx="2.5"/><path d="M8 10.5V7a4 4 0 0 1 7.7-1.5"/></symbol>
+  <symbol id="i-filter" viewBox="0 0 24 24"><circle cx="9" cy="9" r="6"/><circle cx="15" cy="15" r="6"/></symbol>
+  <symbol id="i-move" viewBox="0 0 24 24"><path d="M12 3v18M3 12h18M12 3l-3 3M12 3l3 3M12 21l-3-3M12 21l3-3M3 12l3-3M3 12l3 3M21 12l-3-3M21 12l-3 3"/></symbol>
+  <symbol id="i-grid" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18M15 3v18M3 9h18M3 15h18"/></symbol>
+  <symbol id="i-rotl" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></symbol>
+  <symbol id="i-rotr" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></symbol>
+  <symbol id="i-fliph" viewBox="0 0 24 24"><path d="M12 3v18"/><path d="M8 7 3 12l5 5V7zM16 7l5 5-5 5V7z"/></symbol>
+  <symbol id="i-flipv" viewBox="0 0 24 24"><path d="M3 12h18"/><path d="M7 8l5-5 5 5H7zM7 16l5 5 5-5H7z"/></symbol>
+  <symbol id="i-center" viewBox="0 0 24 24"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="1.5"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></symbol>
+  <symbol id="i-fit" viewBox="0 0 24 24"><path d="M4 9V5a1 1 0 0 1 1-1h4M15 4h4a1 1 0 0 1 1 1v4M20 15v4a1 1 0 0 1-1 1h-4M9 20H5a1 1 0 0 1-1-1v-4"/></symbol>
+  <symbol id="i-crop" viewBox="0 0 24 24"><path d="M6 2v14a2 2 0 0 0 2 2h14"/><path d="M18 22V8a2 2 0 0 0-2-2H2"/></symbol>
+  <symbol id="i-reset" viewBox="0 0 24 24"><path d="M3 12a9 9 0 0 1 15.5-6.2L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15.5 6.2L3 16"/><path d="M3 21v-5h5"/></symbol>
+  <symbol id="i-play" viewBox="0 0 24 24"><path d="M7 4.5v15l13-7.5z" fill="currentColor"/></symbol>
+  <symbol id="i-close" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></symbol>
+  <symbol id="i-down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+  <symbol id="i-pencil" viewBox="0 0 24 24"><path d="M17 3a2.8 2.8 0 0 1 4 4L7.5 20.5 2 22l1.5-5.5z"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M6 6l1 15h10l1-15"/></symbol>
+  <symbol id="i-camera" viewBox="0 0 24 24"><path d="M3 8.5A2.5 2.5 0 0 1 5.5 6h1.7l1.5-2h6.6l1.5 2h1.7A2.5 2.5 0 0 1 21 8.5v9a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 17.5z"/><circle cx="12" cy="13" r="3.8"/></symbol>
+  <symbol id="i-torch" viewBox="0 0 24 24"><path d="M8 2h8v4l-2 4v11a1 1 0 0 1-1 1h-2a1 1 0 0 1-1-1V10L8 6z"/><path d="M12 13v2"/></symbol>
+  <symbol id="i-exit" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></symbol>
+</svg>
+
+<!-- ================= Startseite ================= -->
+<main id="home" class="view">
+  <div class="wrap">
+    <div class="brand">
+      <div class="logo" aria-hidden="true"><i></i><i><svg class="i" style="width:18px;height:18px;color:#fff"><use href="#i-pencil"/></svg></i></div>
+      <div class="grow">
+        <h1>TraceDraw</h1>
+        <p>Digitales Abpausen</p>
+      </div>
+      <button class="icon-btn" data-go="settings" aria-label="Einstellungen"><svg class="i"><use href="#i-gear"/></svg></button>
+    </div>
+
+    <button class="hero" id="pickBtn" aria-label="Bild auswählen">
+      <div class="hi"><svg class="i"><use href="#i-images"/></svg></div>
+      <strong>Bild auswählen</strong>
+      <span>Foto wählen, Handy über das Blatt halten und durch die Kamera nachzeichnen</span>
+    </button>
+    <input type="file" id="fileInput" accept="image/*,.heic,.heif,.avif,.webp" hidden>
+
+    <div class="quick">
+      <button class="tile" data-go="library">
+        <svg class="i"><use href="#i-album"/></svg>
+        <b>Meine Zeichnungen</b>
+        <span class="count" id="libCount">0</span>
+      </button>
+      <button class="tile" data-go="settings">
+        <svg class="i"><use href="#i-sliders"/></svg>
+        <b>Einstellungen</b>
+      </button>
+    </div>
+
+    <h2 class="sec-title">Zuletzt verwendet <small id="recentHint"></small></h2>
+    <div class="row-scroll" id="recentRow"></div>
+
+    <div id="favWrap" hidden>
+      <h2 class="sec-title">Favoriten</h2>
+      <div class="row-scroll" id="favRow"></div>
+    </div>
+
+    <h2 class="sec-title">So funktioniert's</h2>
+    <ol class="steps">
+      <li>Bild auswählen</li>
+      <li>Bildtransparenz einstellen</li>
+      <li>Abpausen starten – die Kamera geht an</li>
+      <li>Handy ruhig über das Blatt halten oder auf ein Glas, Stativ oder Bücherstapel legen</li>
+      <li>Bild auf dem Blatt ausrichten und sperren</li>
+      <li>Auf das Handy schauen und unter der Kamera auf dem Papier malen</li>
+    </ol>
+    <p class="privacy">Deine Bilder und das Kamerabild bleiben auf deinem Gerät. Keine Anmeldung, kein Upload.</p>
+  </div>
+</main>
+
+<!-- ================= Editor ================= -->
+<section id="editor" class="view" hidden>
+  <div class="wrap stage">
+    <div class="bar">
+      <button class="icon-btn" id="edBack" aria-label="Zurück"><svg class="i"><use href="#i-back"/></svg></button>
+      <h2 id="edTitle">Bild einrichten</h2>
+      <button class="icon-btn" id="edUndo" aria-label="Rückgängig" disabled><svg class="i"><use href="#i-undo"/></svg></button>
+      <button class="icon-btn" id="edFav" aria-label="Favorit"><svg class="i"><use href="#i-star"/></svg></button>
+    </div>
+    <div class="editor-body">
+      <div class="editor-left">
+        <div class="preview-area" id="previewArea">
+          <div class="preview" id="previewBox">
+            <canvas id="previewCanvas" aria-label="Bildvorschau – mit einem Finger verschieben, mit zwei Fingern zoomen und drehen"></canvas>
+            <button class="chip" id="edLock"><svg class="i"><use href="#i-unlock"/></svg><span>Bild sperren</span></button>
+          </div>
+        </div>
+        <p class="hint" id="edHint">Mit einem Finger verschieben, mit zwei Fingern zoomen und drehen.</p>
+      </div>
+      <div class="panel">
+        <div class="seg" id="edTabs" role="tablist">
+          <button class="on" data-tab="image" role="tab"><svg class="i"><use href="#i-filter"/></svg>Bild</button>
+          <button data-tab="position" role="tab"><svg class="i"><use href="#i-move"/></svg>Lage</button>
+          <button data-tab="grid" role="tab"><svg class="i"><use href="#i-grid"/></svg>Raster</button>
+        </div>
+        <div class="panel-scroll" id="edPanel"></div>
+        <button class="btn primary big" id="startTrace"><svg class="i"><use href="#i-play"/></svg>Abpausen starten</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= Zuschneiden ================= -->
+<section id="crop" class="view" hidden>
+  <div class="wrap stage" style="flex:1;display:flex;flex-direction:column;min-height:0">
+    <div class="bar">
+      <button class="icon-btn" id="cropBack" aria-label="Zurück"><svg class="i"><use href="#i-back"/></svg></button>
+      <h2>Bildausschnitt</h2>
+      <span style="width:44px"></span>
+    </div>
+    <p class="hint">Ecken ziehen, um unwichtige Bereiche zu entfernen. Rahmen ziehen zum Verschieben.</p>
+    <div class="crop-area" id="cropArea">
+      <canvas id="cropCanvas"></canvas>
+      <div class="crop-frame" id="cropFrame"></div>
+      <div class="h" data-h="tl"></div><div class="h" data-h="tr"></div><div class="h" data-h="bl"></div><div class="h" data-h="br"></div>
+    </div>
+    <div class="crop-meta" id="cropMeta"></div>
+    <div class="crop-actions">
+      <div class="pair">
+        <button class="btn" id="cropAll">Gesamtes Bild</button>
+        <button class="btn" id="cropCancel">Abbrechen</button>
+      </div>
+      <button class="btn primary big" id="cropApply"><svg class="i"><use href="#i-check"/></svg>Zuschnitt übernehmen</button>
+    </div>
+  </div>
+</section>
+
+<!-- ================= Meine Zeichnungen ================= -->
+<section id="library" class="view" hidden>
+  <div class="wrap" style="flex:none;overflow:visible;padding-block:0">
+    <div class="bar">
+      <button class="icon-btn" data-back aria-label="Zurück"><svg class="i"><use href="#i-back"/></svg></button>
+      <h2>Meine Zeichnungen</h2>
+      <span style="width:44px"></span>
+    </div>
+    <div class="seg" id="libFilter">
+      <button class="on" data-f="all">Alle</button>
+      <button data-f="fav">Favoriten</button>
+    </div>
+  </div>
+  <div class="wrap"><div class="grid" id="libGrid"></div></div>
+</section>
+
+<!-- ================= Einstellungen ================= -->
+<section id="settings" class="view" hidden>
+  <div class="wrap" style="flex:none;overflow:visible;padding-block:0">
+    <div class="bar">
+      <button class="icon-btn" data-back aria-label="Zurück"><svg class="i"><use href="#i-back"/></svg></button>
+      <h2>Einstellungen</h2>
+      <span style="width:44px"></span>
+    </div>
+  </div>
+  <div class="wrap">
+    <p class="set-label">Abpaus-Modus</p>
+    <div class="box">
+      <div class="ctl">
+        <div class="top"><label for="setTr">Standard-Transparenz für neue Bilder</label><span class="val" id="setTrVal">30 %</span></div>
+        <input type="range" id="setTr" min="0" max="100" step="1">
+        <div class="hints"><span>Deutlich</span><span>Durchsichtig</span></div>
+      </div>
+      <div class="ctl"><label>Hintergrund</label></div>
+      <div class="seg" id="setBg"><button data-v="black">Schwarz</button><button data-v="dark">Dunkelgrau</button></div>
+      <div class="ctl"><label>Rasterfarbe</label></div>
+      <div class="seg" id="setGrid"><button data-v="white">Weiß</button><button data-v="accent">Violett</button><button data-v="red">Rot</button></div>
+      <label class="switch-row"><span class="tx"><b>Kamera beim Abpausen</b><small>Blatt durch die Kamera sehen und das Bild darüber legen</small></span><span class="switch"><input type="checkbox" id="setCam"><span></span></span></label>
+      <label class="switch-row"><span class="tx"><b>Vibration</b><small>Kurzes Feedback beim Sperren und Entsperren</small></span><span class="switch"><input type="checkbox" id="setHaptics"><span></span></span></label>
+    </div>
+    <p class="set-label">Speicher</p>
+    <div class="box">
+      <p style="margin:0;color:var(--muted);font-size:14px;line-height:1.45" id="storeInfo"></p>
+      <button class="btn danger" id="clearAll"><svg class="i"><use href="#i-trash"/></svg>Alle Bilder löschen</button>
+    </div>
+    <p class="set-label">Tipps</p>
+    <div class="box" style="font-size:14px;line-height:1.5;gap:8px">
+      <span>Stell die Bildschirmhelligkeit auf Maximum, dann sind Konturen besser zu sehen.</span>
+      <span>Der Konturenmodus eignet sich besonders für Fotos mit vielen Details.</span>
+      <span>Das Raster hilft, Proportionen zuverlässig aufs Papier zu übertragen.</span>
+      <span>Leg das Handy auf ein Glas oder einen Bücherstapel, ca. 20–30 cm über dem Blatt. So bleibt das Kamerabild ruhig.</span>
+      <span>Bei wenig Licht hilft die Taschenlampe (oben rechts, falls dein Handy sie unterstützt).</span>
+      <span>Sperre das Bild, sobald es auf dem Blatt richtig liegt. Entsperren: Schloss gedrückt halten.</span>
+      <span>Im Browser bleibt der Bildschirm nur an, solange die Seite sichtbar ist. Schalte bei Bedarf die automatische Sperre in den Systemeinstellungen länger.</span>
+    </div>
+  </div>
+</section>
+
+<!-- ================= Abpaus-Modus ================= -->
+<section id="trace" class="view" hidden>
+  <video id="cam" playsinline muted autoplay hidden></video>
+  <canvas class="trace-canvas" id="traceCanvas" aria-label="Abpaus-Ansicht"></canvas>
+  <div class="cam-note" id="camNote" hidden></div>
+  <div class="float tl" id="trLockWrap">
+    <button class="lockchip" id="trLock"><span class="fill"></span><svg class="i" style="position:relative"><use href="#i-unlock"/></svg><span id="trLockTxt" style="position:relative">Bild sperren</span></button>
+  </div>
+  <div class="float tr" id="trTopRight">
+    <button class="icon-btn" id="trTorch" aria-label="Taschenlampe" hidden><svg class="i"><use href="#i-torch"/></svg></button>
+    <button class="icon-btn" id="trCamBtn" aria-label="Kamera ein- oder ausschalten"><svg class="i"><use href="#i-camera"/></svg></button>
+    <button class="icon-btn" id="trMenuBtn" aria-label="Einstellungen öffnen"><svg class="i"><use href="#i-sliders"/></svg></button>
+    <button class="icon-btn" id="trExitBtn" aria-label="Abpaus-Modus beenden"><svg class="i"><use href="#i-close"/></svg></button>
+  </div>
+  <div class="lock-hint" id="trHint">
+    <span>Handy über das Blatt halten, Bild mit den Fingern auf dem Papier ausrichten und dann sperren.</span>
+    <button class="btn primary" id="trHintLock"><svg class="i"><use href="#i-lock"/></svg>Bild sperren</button>
+  </div>
+  <div class="sheet closed" id="trSheet" aria-label="Einstellungen">
+    <div class="sheet-head">
+      <div class="handle"></div>
+      <div class="t">
+        <h3>Einstellungen</h3>
+        <div style="display:flex;gap:8px">
+          <button class="icon-btn" id="trUndo" aria-label="Rückgängig" disabled><svg class="i"><use href="#i-undo"/></svg></button>
+          <button class="icon-btn" id="trMenuClose" aria-label="Menü schließen"><svg class="i"><use href="#i-down"/></svg></button>
+        </div>
+      </div>
+    </div>
+    <div class="sheet-body" id="trPanel"></div>
+  </div>
+</section>
+
+<div class="modal" id="modal" hidden>
+  <div class="dlg" role="dialog" aria-modal="true" aria-labelledby="mTitle">
+    <h3 id="mTitle"></h3>
+    <p id="mText"></p>
+    <div class="acts" id="mActs"></div>
+  </div>
+</div>
+<div class="toast" id="toast" hidden></div>
+<div class="busy" id="busy" hidden>Bild wird vorbereitet …</div>
+
+<script>
+(() => {
+'use strict';
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
+const MAX_SIDE = 2000;          // Arbeitsauflösung (größere Fotos werden beim Laden verkleinert)
+const MIN_SCALE = 0.1, MAX_SCALE = 20;
+const DEG = Math.PI / 180;
+
+/* ---------------- Speicher ---------------- */
+const LS = {
+  get(k, d) { try { const v = localStorage.getItem('td:' + k); return v == null ? d : JSON.parse(v); } catch { return d; } },
+  set(k, v) { try { localStorage.setItem('td:' + k, JSON.stringify(v)); } catch {} }
+};
+const prefs = Object.assign({ lastTr: 40, bg: 'black', grid: 'white', haptics: true, camera: true }, LS.get('prefs', {}));
+const savePrefs = () => LS.set('prefs', prefs);
+
+const DB = {
+  db: null,
+  async open() {
+    if (this.db) return this.db;
+    this.db = await new Promise((res, rej) => {
+      const r = indexedDB.open('tracedraw', 1);
+      r.onupgradeneeded = () => r.result.createObjectStore('projects', { keyPath: 'id' });
+      r.onsuccess = () => res(r.result);
+      r.onerror = () => rej(r.error);
+    });
+    return this.db;
+  },
+  async tx(mode, fn) {
+    const db = await this.open();
+    return new Promise((res, rej) => {
+      const t = db.transaction('projects', mode);
+      const st = t.objectStore('projects');
+      const out = fn(st);
+      t.oncomplete = () => res(out && out.result !== undefined ? out.result : undefined);
+      t.onerror = () => rej(t.error);
+    });
+  },
+  all() { return this.tx('readonly', s => s.getAll()); },
+  put(p) { return this.tx('readwrite', s => s.put(p)); },
+  del(id) { return this.tx('readwrite', s => s.delete(id)); },
+  clear() { return this.tx('readwrite', s => s.clear()); }
+};
+
+let projects = [];      // Metadaten aller gespeicherten Bilder
+let storageOk = true;
+
+/* ---------------- Zustand ---------------- */
+const S = {
+  project: null,     // aktuelles Projekt (inkl. blob)
+  base: null,        // Bild in Arbeitsauflösung (Canvas)
+  src: null,         // zugeschnittenes Bild (Canvas)
+  srcData: null,     // Pixeldaten von src (Cache)
+  proc: null,        // gefiltertes Bild (Canvas oder src)
+  procCanvas: document.createElement('canvas'),
+  settings: null,
+  transform: null,
+  locked: false,
+  past: [],
+  pending: null,
+  view: 'home',
+  stack: ['home'],
+  menuOpen: false,
+  tab: 'image'
+};
+
+const defaultSettings = tr => ({ transparency: tr, brightness: 0, contrast: 0, mode: 'original', contourStrength: 50, invert: false, gridEnabled: false, gridCells: 6, flipH: false, flipV: false });
+const defaultTransform = () => ({ x: 0, y: 0, scale: 1, rotation: 0 });
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+const normDeg = d => { d = d % 360; if (d > 180) d -= 360; if (d <= -180) d += 360; return Math.round(d * 100) / 100; };
+const fmtDate = ts => { const d = new Date(ts); const p = n => String(n).padStart(2, '0'); return `${p(d.getDate())}.${p(d.getMonth() + 1)}.${d.getFullYear()}`; };
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+const vibrate = ms => { if (prefs.haptics && navigator.vibrate) try { navigator.vibrate(ms); } catch {} };
+const bgColor = () => prefs.bg === 'dark' ? '#141418' : '#000000';
+const gridColor = () => ({ white: 'rgba(255,255,255,0.6)', accent: 'rgba(167,139,250,0.85)', red: 'rgba(248,113,113,0.85)' })[prefs.grid];
+
+/* ---------------- Hinweis & Dialog ---------------- */
+let toastT;
+function toast(msg) {
+  const t = $('#toast'); t.textContent = msg; t.hidden = false;
+  clearTimeout(toastT); toastT = setTimeout(() => t.hidden = true, 1900);
+}
+function dialog(title, text, actions) {
+  $('#mTitle').textContent = title; $('#mText').textContent = text;
+  const acts = $('#mActs'); acts.innerHTML = '';
+  actions.forEach(a => {
+    const b = document.createElement('button');
+    b.className = 'btn ' + (a.kind || ''); b.textContent = a.label;
+    b.onclick = () => { $('#modal').hidden = true; a.run && a.run(); };
+    acts.appendChild(b);
+  });
+  $('#modal').hidden = false;
+  acts.lastChild && acts.lastChild.focus();
+}
+$('#modal').addEventListener('click', e => { if (e.target.id === 'modal') $('#modal').hidden = true; });
+
+/* ---------------- Navigation ---------------- */
+function show(view, push = true) {
+  if (push && S.view !== view) S.stack.push(view);
+  S.view = view;
+  $$('.view').forEach(v => v.hidden = v.id !== view);
+  if (view === 'home') renderHome();
+  if (view === 'library') renderLibrary();
+  if (view === 'settings') renderSettings();
+  if (view === 'editor') { renderPanel(); requestAnimationFrame(layoutPreview); }
+  if (view === 'trace') requestAnimationFrame(sizeTrace);
+}
+function back() {
+  if (S.view === 'trace') return exitTrace();
+  S.stack.pop();
+  const prev = S.stack[S.stack.length - 1] || 'home';
+  if (S.view === 'editor') saveProjectNow();
+  show(prev, false);
+}
+$$('[data-go]').forEach(b => b.onclick = () => show(b.dataset.go));
+$$('[data-back]').forEach(b => b.onclick = back);
+
+/* ---------------- Bilder laden ---------------- */
+function loadImage(blob) {
+  return new Promise((res, rej) => {
+    const url = URL.createObjectURL(blob);
+    const img = new Image();
+    img.onload = () => { res(img); setTimeout(() => URL.revokeObjectURL(url), 0); };
+    img.onerror = () => { URL.revokeObjectURL(url); rej(new Error('decode')); };
+    img.src = url;
+  });
+}
+/* Alle Galerieformate: JPG, PNG, WebP, GIF, AVIF, BMP, SVG direkt; HEIC/HEIF (iPhone) wird bei Bedarf umgewandelt */
+async function isHeic(blob) {
+  const t = (blob.type || '').toLowerCase();
+  if (t.includes('heic') || t.includes('heif')) return true;
+  if (blob.name && /\.(heic|heif)$/i.test(blob.name)) return true;
+  try {
+    const b = new Uint8Array(await blob.slice(0, 16).arrayBuffer());
+    const brand = String.fromCharCode(...b.slice(4, 12));
+    return /^ftyp(heic|heix|hevc|hevx|heim|heis|mif1|msf1)/.test(brand);
+  } catch { return false; }
+}
+let heicLib = null;
+function loadHeicLib() {
+  if (heicLib) return heicLib;
+  heicLib = new Promise((res, rej) => {
+    const sc = document.createElement('script');
+    sc.src = 'https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js';
+    sc.onload = () => window.heic2any ? res(window.heic2any) : rej(new Error('heic'));
+    sc.onerror = () => { heicLib = null; rej(new Error('heic-load')); };
+    document.head.appendChild(sc);
+  });
+  return heicLib;
+}
+async function heicToJpeg(blob) {
+  const conv = await loadHeicLib();
+  const out = await conv({ blob, toType: 'image/jpeg', quality: 0.95 });
+  return Array.isArray(out) ? out[0] : out;
+}
+/* Liefert ein darstellbares Bild und den Blob, der gespeichert wird */
+async function decodeAny(blob) {
+  try { return { img: await loadImage(blob), blob }; } catch {}
+  if (window.createImageBitmap) {
+    try { return { img: await createImageBitmap(blob, { imageOrientation: 'from-image' }), blob }; } catch {}
+  }
+  if (await isHeic(blob)) {
+    $('#busy').textContent = 'iPhone-Foto (HEIC) wird umgewandelt …';
+    try {
+      const jpg = await heicToJpeg(blob);
+      return { img: await loadImage(jpg), blob: jpg };
+    } finally { $('#busy').textContent = 'Bild wird vorbereitet …'; }
+  }
+  throw new Error('decode');
+}
+function toBase(img) {
+  const w = img.naturalWidth || img.width, h = img.naturalHeight || img.height;
+  const k = Math.min(1, MAX_SIDE / Math.max(w, h));
+  const c = document.createElement('canvas');
+  c.width = Math.max(1, Math.round(w * k)); c.height = Math.max(1, Math.round(h * k));
+  const ctx = c.getContext('2d');
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(img, 0, 0, c.width, c.height);
+  return c;
+}
+function cropCanvasFrom(base, crop) {
+  if (!crop) return base;
+  const x = Math.round(crop.x * base.width), y = Math.round(crop.y * base.height);
+  const w = Math.max(1, Math.round(crop.w * base.width)), h = Math.max(1, Math.round(crop.h * base.height));
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  c.getContext('2d').drawImage(base, x, y, w, h, 0, 0, w, h);
+  return c;
+}
+function makeThumb(src) {
+  const k = 300 / Math.max(src.width, src.height);
+  const c = document.createElement('canvas');
+  c.width = Math.max(1, Math.round(src.width * k)); c.height = Math.max(1, Math.round(src.height * k));
+  const ctx = c.getContext('2d'); ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(src, 0, 0, c.width, c.height);
+  return c.toDataURL('image/jpeg', 0.8);
+}
+
+/* Beispielbild (gezeichnet, damit sofort etwas zum Ausprobieren da ist) */
+function sampleBlob() {
+  const c = document.createElement('canvas'); c.width = 1400; c.height = 1050;
+  const g = c.getContext('2d');
+  const sky = g.createLinearGradient(0, 0, 0, 1050); sky.addColorStop(0, '#9EC9F0'); sky.addColorStop(1, '#F6E6C8');
+  g.fillStyle = sky; g.fillRect(0, 0, 1400, 1050);
+  g.fillStyle = '#F7B733'; g.beginPath(); g.arc(1080, 230, 110, 0, Math.PI * 2); g.fill();
+  g.lineWidth = 6; g.strokeStyle = '#3B3F5C';
+  const mountain = (pts, fill) => { g.fillStyle = fill; g.beginPath(); g.moveTo(pts[0], pts[1]); for (let i = 2; i < pts.length; i += 2) g.lineTo(pts[i], pts[i + 1]); g.closePath(); g.fill(); g.stroke(); };
+  mountain([-20, 760, 330, 300, 520, 520, 700, 260, 1050, 760], '#7D8AB8');
+  mountain([560, 760, 900, 380, 1180, 600, 1420, 470, 1420, 760], '#5F6C9C');
+  g.fillStyle = '#FFFFFF'; g.beginPath(); g.moveTo(700, 260); g.lineTo(640, 345); g.lineTo(680, 330); g.lineTo(705, 360); g.lineTo(735, 330); g.lineTo(765, 350); g.closePath(); g.fill(); g.stroke();
+  g.fillStyle = '#86B06A'; g.fillRect(-10, 740, 1420, 320); g.beginPath(); g.moveTo(-10, 760); g.bezierCurveTo(400, 700, 900, 820, 1410, 740); g.stroke();
+  g.fillStyle = '#E9D8B8'; g.fillRect(250, 660, 260, 200); g.strokeRect(250, 660, 260, 200);
+  g.fillStyle = '#C0533F'; g.beginPath(); g.moveTo(225, 665); g.lineTo(380, 540); g.lineTo(535, 665); g.closePath(); g.fill(); g.stroke();
+  g.fillStyle = '#6B4A32'; g.fillRect(345, 760, 70, 100); g.strokeRect(345, 760, 70, 100);
+  g.fillStyle = '#BFE3F5'; g.fillRect(280, 700, 50, 45); g.strokeRect(280, 700, 50, 45); g.fillRect(430, 700, 50, 45); g.strokeRect(430, 700, 50, 45);
+  g.fillStyle = '#6B4A32'; g.fillRect(1010, 690, 40, 180); g.strokeRect(1010, 690, 40, 180);
+  g.fillStyle = '#4E8A4A'; [[1030, 620, 110], [960, 680, 80], [1100, 690, 80]].forEach(([x, y, r]) => { g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill(); g.stroke(); });
+  g.beginPath(); g.moveTo(380, 1050); g.bezierCurveTo(390, 960, 360, 900, 380, 860); g.lineTo(390, 860); g.bezierCurveTo(470, 920, 520, 980, 560, 1050); g.fillStyle = '#D9C49A'; g.fill(); g.stroke();
+  return new Promise(r => c.toBlob(r, 'image/png'));
+}
+
+async function createProject(input, name) {
+  const { img, blob } = await decodeAny(input);
+  const base = toBase(img);
+  const now = Date.now();
+  return {
+    id: uid(), name, blob, created: now, lastUsed: now, favorite: false, locked: false, crop: null,
+    settings: defaultSettings(prefs.lastTr), transform: defaultTransform(), thumb: makeThumb(base), _base: base
+  };
+}
+
+async function openProject(p) {
+  $('#busy').hidden = false;
+  try {
+    const base = p._base || toBase((await decodeAny(p.blob)).img);
+    S.project = p; S.base = base;
+    S.src = cropCanvasFrom(base, p.crop); S.srcData = null;
+    S.settings = Object.assign(defaultSettings(prefs.lastTr), p.settings);
+    S.transform = Object.assign(defaultTransform(), p.transform);
+    S.locked = !!p.locked; S.past = []; S.pending = null;
+    p.lastUsed = Date.now();
+    processNow();
+    S.tab = 'image';
+    $$('#edTabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === 'image'));
+    updateEditorChrome();
+    show('editor');
+    saveProjectNow();
+  } catch (e) {
+    dialog('Bild konnte nicht geöffnet werden', 'Die Datei ist beschädigt, kein Bild oder ein seltenes Format (z. B. RAW). Bei iPhone-Fotos braucht die Umwandlung eine Internetverbindung. Versuche es erneut oder wähle ein anderes Foto.', [{ label: 'OK', kind: 'primary' }]);
+  } finally {
+    $('#busy').hidden = true;
+  }
+}
+
+$('#pickBtn').onclick = () => $('#fileInput').click();
+$('#fileInput').onchange = async e => {
+  const f = e.target.files && e.target.files[0];
+  e.target.value = '';
+  if (!f) return;
+  if (f.type && !f.type.startsWith('image/') && !/\.(heic|heif)$/i.test(f.name)) { toast('Bitte wähle ein Bild aus'); return; }
+  $('#busy').hidden = false;
+  try {
+    const p = await createProject(f, `Bild vom ${fmtDate(Date.now())}`);
+    projects.unshift(p);
+    await openProject(p);
+  } catch {
+    $('#busy').hidden = true;
+    dialog('Bild konnte nicht geöffnet werden', 'Die Datei ist beschädigt, kein Bild oder ein seltenes Format (z. B. RAW). Bei iPhone-Fotos braucht die Umwandlung eine Internetverbindung. Versuche es erneut oder wähle ein anderes Foto.', [{ label: 'OK', kind: 'primary' }]);
+  }
+};
+
+let sampleThumb = null;
+async function openSample() {
+  const p = await createProject(await sampleBlob(), 'Beispiel: Berglandschaft');
+  projects.unshift(p);
+  openProject(p);
+}
+
+/* ---------------- Speichern ---------------- */
+function serial(p) {
+  const { _base, ...rest } = p; return rest;
+}
+let saveT;
+function saveProjectSoon() { clearTimeout(saveT); saveT = setTimeout(saveProjectNow, 400); }
+function saveProjectNow() {
+  clearTimeout(saveT);
+  const p = S.project; if (!p) return;
+  p.settings = { ...S.settings }; p.transform = { ...S.transform }; p.locked = S.locked;
+  if (!storageOk) return;
+  DB.put(serial(p)).catch(() => { storageOk = false; });
+}
+
+/* ---------------- Verlauf (Rückgängig) ---------------- */
+const snap = () => JSON.stringify({ s: S.settings, t: S.transform });
+function pushHistory(before) { S.past.push(before); if (S.past.length > 60) S.past.shift(); updateUndo(); }
+function beginChange() { if (!S.pending) S.pending = snap(); }
+function endChange() { if (S.pending) { if (S.pending !== snap()) pushHistory(S.pending); S.pending = null; } saveProjectSoon(); }
+function commit(fn) { const before = snap(); fn(); if (before !== snap()) pushHistory(before); afterChange(); saveProjectSoon(); }
+function undo() {
+  const prev = S.past.pop(); if (!prev) return;
+  const o = JSON.parse(prev);
+  if (S.locked) { // gesperrt: Lage und Spiegelung bleiben unangetastet
+    o.s.flipH = S.settings.flipH; o.s.flipV = S.settings.flipV;
+    S.settings = o.s;
+  } else { S.settings = o.s; S.transform = o.t; }
+  afterChange(true); updateUndo(); saveProjectSoon();
+}
+function updateUndo() { const d = S.past.length === 0; $('#edUndo').disabled = d; $('#trUndo').disabled = d; }
+$('#edUndo').onclick = undo; $('#trUndo').onclick = undo;
+
+/* ---------------- Bildfilter ---------------- */
+const contrastFactor = c => c >= 0 ? 1 + c / 50 : 1 + c / 100;
+let procQueued = false;
+function scheduleProcess() { if (procQueued) return; procQueued = true; requestAnimationFrame(() => { procQueued = false; processNow(); draw(); }); }
+function processNow() {
+  const st = S.settings, src = S.src;
+  if (!src) return;
+  if (st.mode === 'original' && st.contrast === 0 && st.brightness === 0) { S.proc = src; return; }
+  const w = src.width, h = src.height;
+  if (!S.srcData) S.srcData = src.getContext('2d').getImageData(0, 0, w, h);
+  const d = S.srcData.data;
+  const out = new ImageData(w, h), o = out.data;
+  const c = contrastFactor(st.contrast);
+  const off = (0.5 * (1 - c) + st.brightness / 200) * 255;
+  const inv = st.invert && st.mode !== 'original';
+  const n = w * h;
+  if (st.mode === 'contour') {
+    const L = new Float32Array(n);
+    for (let i = 0, j = 0; i < n; i++, j += 4) L[i] = (0.299 * d[j] + 0.587 * d[j + 1] + 0.114 * d[j + 2]) / 255;
+    const gain = 1 + st.contourStrength / 100 * 9;
+    const s = Math.max(1, Math.round(Math.max(w, h) / 1600));
+    for (let y = 0; y < h; y++) {
+      const y0 = Math.max(0, y - s) * w, y1 = y * w, y2 = Math.min(h - 1, y + s) * w;
+      for (let x = 0; x < w; x++) {
+        const x0 = Math.max(0, x - s), x2 = Math.min(w - 1, x + s);
+        const tl = L[y0 + x0], tc = L[y0 + x], tr = L[y0 + x2], ml = L[y1 + x0], mr = L[y1 + x2], bl = L[y2 + x0], bc = L[y2 + x], br = L[y2 + x2];
+        const gx = -tl - 2 * ml - bl + tr + 2 * mr + br;
+        const gy = -tl - 2 * tc - tr + bl + 2 * bc + br;
+        let v = Math.min(1, Math.sqrt(gx * gx + gy * gy) * gain) * 255;
+        v = v * c + off; v = v < 0 ? 0 : v > 255 ? 255 : v;
+        if (inv) v = 255 - v;
+        const j = (y1 + x) * 4;
+        o[j] = o[j + 1] = o[j + 2] = v; o[j + 3] = d[j + 3];
+      }
+    }
+  } else if (st.mode === 'grayscale') {
+    for (let j = 0; j < n * 4; j += 4) {
+      let v = (0.299 * d[j] + 0.587 * d[j + 1] + 0.114 * d[j + 2]) * c + off;
+      v = v < 0 ? 0 : v > 255 ? 255 : v; if (inv) v = 255 - v;
+      o[j] = o[j + 1] = o[j + 2] = v; o[j + 3] = d[j + 3];
+    }
+  } else {
+    for (let j = 0; j < n * 4; j += 4) {
+      o[j] = d[j] * c + off; o[j + 1] = d[j + 1] * c + off; o[j + 2] = d[j + 2] * c + off; o[j + 3] = d[j + 3];
+    }
+  }
+  const pc = S.procCanvas; pc.width = w; pc.height = h;
+  pc.getContext('2d').putImageData(out, 0, 0);
+  S.proc = pc;
+}
+
+/* ---------------- Zeichnen ---------------- */
+function render(cv, cssW, cssH) {
+  if (!cssW || !cssH) return;
+  const dpr = Math.min(window.devicePixelRatio || 1, 2.5);
+  const pw = Math.round(cssW * dpr), ph = Math.round(cssH * dpr);
+  if (cv.width !== pw || cv.height !== ph) { cv.width = pw; cv.height = ph; }
+  const ctx = cv.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.globalAlpha = 1;
+  if (cv.id === 'traceCanvas' && Cam.on) ctx.clearRect(0, 0, cssW, cssH);
+  else { ctx.fillStyle = bgColor(); ctx.fillRect(0, 0, cssW, cssH); }
+  const img = S.proc; if (!img) return;
+  const iw = img.width, ih = img.height, st = S.settings, t = S.transform;
+  const base = Math.min(cssW / iw, cssH / ih);
+  const s = t.scale * base;
+  ctx.translate(cssW / 2 + t.x * cssW, cssH / 2 + t.y * cssH);
+  ctx.rotate(t.rotation * DEG);
+  ctx.scale(s * (st.flipH ? -1 : 1), s * (st.flipV ? -1 : 1));
+  ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
+  ctx.globalAlpha = 1 - st.transparency / 100;
+  ctx.drawImage(img, -iw / 2, -ih / 2);
+  ctx.globalAlpha = 1;
+  if (st.gridEnabled) {
+    const cell = Math.min(iw, ih) / Math.max(1, st.gridCells);
+    ctx.lineWidth = 1.25 / s; ctx.strokeStyle = gridColor();
+    ctx.beginPath();
+    for (let x = 0; x <= iw / 2 + 0.01; x += cell) { ctx.moveTo(x, -ih / 2); ctx.lineTo(x, ih / 2); if (x) { ctx.moveTo(-x, -ih / 2); ctx.lineTo(-x, ih / 2); } }
+    for (let y = 0; y <= ih / 2 + 0.01; y += cell) { ctx.moveTo(-iw / 2, y); ctx.lineTo(iw / 2, y); if (y) { ctx.moveTo(-iw / 2, -y); ctx.lineTo(iw / 2, -y); } }
+    ctx.rect(-iw / 2, -ih / 2, iw, ih);
+    ctx.stroke();
+  }
+}
+let drawQueued = false;
+function draw() {
+  if (drawQueued) return; drawQueued = true;
+  requestAnimationFrame(() => {
+    drawQueued = false;
+    if (S.view === 'editor') { const c = $('#previewCanvas'); render(c, c.clientWidth, c.clientHeight); }
+    if (S.view === 'trace') { const c = $('#traceCanvas'); render(c, c.clientWidth, c.clientHeight); }
+  });
+}
+function layoutPreview() {
+  const area = $('#previewArea'), box = $('#previewBox');
+  const aw = area.clientWidth, ah = area.clientHeight;
+  if (!aw || !ah) return;
+  const aspect = window.innerWidth / window.innerHeight;  // gleiches Seitenverhältnis wie der Vollbildmodus
+  let w = aw, h = w / aspect;
+  if (h > ah) { h = ah; w = h * aspect; }
+  box.style.width = Math.floor(w) + 'px'; box.style.height = Math.floor(h) + 'px';
+  draw();
+}
+function sizeTrace() { draw(); }
+window.addEventListener('resize', () => { if (S.view === 'editor') layoutPreview(); else draw(); });
+if (window.ResizeObserver) new ResizeObserver(() => { if (S.view === 'editor') layoutPreview(); }).observe($('#previewArea'));
+
+function afterChange(full) {
+  processNeeded();
+  if (full) syncControls();
+  updateEditorChrome();
+  draw();
+}
+let lastProcKey = '';
+function processNeeded() {
+  const st = S.settings;
+  const key = [st.mode, st.contrast, st.brightness, st.invert, st.contourStrength].join('|');
+  if (key !== lastProcKey) { lastProcKey = key; scheduleProcess(); }
+}
+
+/* ---------------- Gesten ---------------- */
+function attachGestures(cv, onTap) {
+  const pts = new Map();
+  let baseG = null, before = null, moved = false, downAt = 0, downPos = null;
+  const centroid = () => { let x = 0, y = 0; pts.forEach(p => { x += p.x; y += p.y; }); return { x: x / pts.size, y: y / pts.size }; };
+  const pair = () => { const [a, b] = Array.from(pts.values()); return { d: Math.hypot(b.x - a.x, b.y - a.y), a: Math.atan2(b.y - a.y, b.x - a.x) }; };
+  const rebase = () => { baseG = { t: { ...S.transform }, c: centroid(), ...(pts.size >= 2 ? pair() : {}) }; };
+  const interactive = () => !S.locked && !S.menuOpen;
+
+  cv.addEventListener('pointerdown', e => {
+    downAt = performance.now(); downPos = { x: e.clientX, y: e.clientY };
+    if (!interactive()) return;
+    try { cv.setPointerCapture(e.pointerId); } catch {}
+    if (pts.size === 0) { before = snap(); moved = false; }
+    pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    rebase();
+  });
+  cv.addEventListener('pointermove', e => {
+    if (!pts.has(e.pointerId) || !interactive()) return;
+    pts.get(e.pointerId).x = e.clientX; pts.get(e.pointerId).y = e.clientY;
+    const w = cv.clientWidth, h = cv.clientHeight;
+    const c = centroid();
+    const t = { ...baseG.t };
+    t.x = clamp(baseG.t.x + (c.x - baseG.c.x) / w, -3, 3);
+    t.y = clamp(baseG.t.y + (c.y - baseG.c.y) / h, -3, 3);
+    if (pts.size >= 2 && baseG.d) {
+      const p = pair();
+      t.scale = clamp(baseG.t.scale * p.d / baseG.d, MIN_SCALE, MAX_SCALE);
+      let da = p.a - baseG.a; if (da > Math.PI) da -= 2 * Math.PI; if (da < -Math.PI) da += 2 * Math.PI;
+      t.rotation = baseG.t.rotation + da / DEG;
+    }
+    if (Math.abs(c.x - baseG.c.x) + Math.abs(c.y - baseG.c.y) > 2 || pts.size >= 2) moved = true;
+    S.transform = t; draw();
+  });
+  const up = e => {
+    const wasTracked = pts.delete(e.pointerId);
+    if (wasTracked && pts.size > 0) { rebase(); return; }
+    if (wasTracked && moved) {
+      S.transform.rotation = normDeg(S.transform.rotation);
+      if (before !== snap()) pushHistory(before);
+      syncControls(); saveProjectSoon();
+    }
+    if (e.type === 'pointerup' && downPos && performance.now() - downAt < 280 && Math.hypot(e.clientX - downPos.x, e.clientY - downPos.y) < 10 && !moved) onTap && onTap();
+    moved = false;
+  };
+  cv.addEventListener('pointerup', up);
+  cv.addEventListener('pointercancel', up);
+  cv.addEventListener('wheel', e => {
+    if (!interactive()) return;
+    e.preventDefault();
+    commit(() => { S.transform.scale = clamp(S.transform.scale * Math.exp(-e.deltaY * 0.0015), MIN_SCALE, MAX_SCALE); });
+  }, { passive: false });
+}
+
+/* ---------------- Bedienelemente ---------------- */
+function rangeCtl(prefix, key, label, min, max, step, fmt, hints, resetVal) {
+  const id = `${prefix}-${key}`;
+  return `<div class="ctl"><div class="top"><label for="${id}">${label}</label><span class="val${resetVal !== undefined ? ' reset' : ''}" data-val="${key}" ${resetVal !== undefined ? `data-reset="${resetVal}" title="Antippen zum Zurücksetzen"` : ''}></span></div>
+  <input type="range" id="${id}" data-k="${key}" min="${min}" max="${max}" step="${step}" data-fmt="${fmt}">
+  ${hints ? `<div class="hints"><span>${hints[0]}</span><span>${hints[1]}</span></div>` : ''}</div>`;
+}
+function switchCtl(prefix, key, label, desc) {
+  return `<label class="switch-row"><span class="tx"><b>${label}</b>${desc ? `<small>${desc}</small>` : ''}</span><span class="switch"><input type="checkbox" id="${prefix}-${key}" data-k="${key}"><span></span></span></label>`;
+}
+const imageCtls = p => `
+  ${rangeCtl(p, 'transparency', 'Bildtransparenz', 0, 100, 1, 'pct', ['Deutlich', 'Durchsichtig'])}
+  <div class="seg" data-mode>
+    <button data-m="original">Original</button><button data-m="grayscale">Graustufen</button><button data-m="contour">Konturen</button>
+  </div>
+  <div data-only="contour">${rangeCtl(p, 'contourStrength', 'Konturstärke', 1, 100, 1, 'pct', ['Fein', 'Kräftig'], 50)}</div>
+  <div data-only="notoriginal">${switchCtl(p, 'invert', '<span data-invlabel>Invertieren</span>')}</div>
+  ${rangeCtl(p, 'contrast', 'Kontrast', -100, 100, 1, 'signed', null, 0)}
+  ${rangeCtl(p, 'brightness', 'Helligkeit', -100, 100, 1, 'signed', null, 0)}`;
+const gridCtls = p => `
+  ${switchCtl(p, 'gridEnabled', 'Raster einblenden', 'Hilft, Proportionen exakt aufs Papier zu übertragen')}
+  ${rangeCtl(p, 'gridCells', 'Rastergröße', 2, 16, 1, 'cells', ['Grob', 'Fein'])}`;
+const positionCtls = p => `
+  <fieldset data-pos>
+  ${rangeCtl(p, 'zoom', 'Zoom', -3.32, 3, 0.01, 'zoom', null, 0)}
+  ${rangeCtl(p, 'rotation', 'Drehung', -180, 180, 0.5, 'deg', ['−180°', '+180°'], 0)}
+  <div class="tools">
+    <button class="tool" data-act="rotl"><svg class="i"><use href="#i-rotl"/></svg>−90°</button>
+    <button class="tool" data-act="rotr"><svg class="i"><use href="#i-rotr"/></svg>+90°</button>
+    <button class="tool" data-act="flipH" data-flip="flipH"><svg class="i"><use href="#i-fliph"/></svg>Horizontal</button>
+    <button class="tool" data-act="flipV" data-flip="flipV"><svg class="i"><use href="#i-flipv"/></svg>Vertikal</button>
+    <button class="tool" data-act="center"><svg class="i"><use href="#i-center"/></svg>Zentrieren</button>
+    <button class="tool" data-act="fit"><svg class="i"><use href="#i-fit"/></svg>Einpassen</button>
+    ${p === 'e' ? '<button class="tool" data-act="crop"><svg class="i"><use href="#i-crop"/></svg>Zuschneiden</button>' : ''}
+    <button class="tool" data-act="reset"><svg class="i"><use href="#i-reset"/></svg>Zurücksetzen</button>
+  </div>
+  </fieldset>`;
+
+const FMT = {
+  pct: v => `${Math.round(v)} %`, signed: v => (v > 0 ? '+' : '') + Math.round(v), cells: v => `${Math.round(v)} Felder`,
+  zoom: () => `${S.transform.scale.toFixed(2)}×`, deg: v => `${Number(v).toFixed(1)}°`
+};
+const getVal = k => k === 'zoom' ? Math.log2(S.transform.scale) : k === 'rotation' ? S.transform.rotation : S.settings[k];
+function setVal(k, v) {
+  if (k === 'zoom') S.transform.scale = clamp(Math.pow(2, v), MIN_SCALE, MAX_SCALE);
+  else if (k === 'rotation') S.transform.rotation = v;
+  else if (typeof S.settings[k] === 'boolean') S.settings[k] = !!v;
+  else S.settings[k] = k === 'gridCells' ? Math.round(v) : v;
+}
+
+function bindControls(root) {
+  root.addEventListener('input', e => {
+    const el = e.target; const k = el.dataset.k; if (!k) return;
+    if (el.type === 'range') { beginChange(); setVal(k, parseFloat(el.value)); paintRange(el); afterChange(); syncValues(); }
+  });
+  root.addEventListener('change', e => {
+    const el = e.target; const k = el.dataset.k; if (!k) return;
+    if (el.type === 'checkbox') { commit(() => setVal(k, el.checked)); syncControls(); }
+    else { endChange(); if (k === 'transparency') { prefs.lastTr = Math.round(S.settings.transparency); savePrefs(); } }
+  });
+  root.addEventListener('click', e => {
+    const m = e.target.closest('[data-m]');
+    if (m) { commit(() => S.settings.mode = m.dataset.m); syncControls(); return; }
+    const r = e.target.closest('[data-reset]');
+    if (r) { const k = r.dataset.val; commit(() => setVal(k, parseFloat(r.dataset.reset))); syncControls(); return; }
+    const a = e.target.closest('[data-act]');
+    if (a && !S.locked) {
+      const t = S.transform;
+      const act = a.dataset.act;
+      if (act === 'crop') return openCrop();
+      commit(() => {
+        if (act === 'rotl') t.rotation = normDeg(t.rotation - 90);
+        if (act === 'rotr') t.rotation = normDeg(t.rotation + 90);
+        if (act === 'flipH') S.settings.flipH = !S.settings.flipH;
+        if (act === 'flipV') S.settings.flipV = !S.settings.flipV;
+        if (act === 'center') { t.x = 0; t.y = 0; }
+        if (act === 'fit') { t.x = 0; t.y = 0; t.scale = 1; }
+        if (act === 'reset') { S.transform = defaultTransform(); S.settings.flipH = false; S.settings.flipV = false; }
+      });
+      syncControls();
+    }
+  });
+}
+function paintRange(el) { const min = +el.min, max = +el.max; el.style.setProperty('--p', ((el.value - min) / (max - min) * 100) + '%'); }
+function syncValues() {
+  $$('[data-val]').forEach(v => { const k = v.dataset.val; const inp = v.closest('.ctl').querySelector('input'); v.textContent = FMT[inp.dataset.fmt](getVal(k)); });
+}
+function syncControls() {
+  const st = S.settings;
+  $$('input[data-k]').forEach(el => {
+    const v = getVal(el.dataset.k);
+    if (el.type === 'checkbox') el.checked = !!v; else { el.value = v; paintRange(el); }
+  });
+  $$('[data-mode] button').forEach(b => b.classList.toggle('on', b.dataset.m === st.mode));
+  $$('[data-only="contour"]').forEach(x => x.hidden = st.mode !== 'contour');
+  $$('[data-only="notoriginal"]').forEach(x => x.hidden = st.mode === 'original');
+  $$('[data-invlabel]').forEach(x => x.textContent = st.mode === 'contour' ? 'Dunkle Linien auf hellem Grund' : 'Invertieren');
+  $$('input[data-k="gridCells"]').forEach(x => x.disabled = !st.gridEnabled);
+  $$('[data-flip]').forEach(b => b.classList.toggle('on', !!st[b.dataset.flip]));
+  $$('[data-pos]').forEach(f => f.disabled = S.locked);
+  syncValues();
+}
+
+function renderPanel() {
+  const p = $('#edPanel');
+  p.innerHTML = S.tab === 'image' ? imageCtls('e') : S.tab === 'position' ? positionCtls('e') : gridCtls('e');
+  syncControls();
+}
+$('#edTabs').onclick = e => {
+  const b = e.target.closest('[data-tab]'); if (!b) return;
+  S.tab = b.dataset.tab;
+  $$('#edTabs button').forEach(x => x.classList.toggle('on', x === b));
+  renderPanel();
+};
+bindControls($('#edPanel'));
+$('#trPanel').innerHTML = `<label class="switch-row"><span class="tx"><b>Kamera</b><small>Zeigt das Blatt unter dem Handy, das Bild liegt darüber</small></span><span class="switch"><input type="checkbox" id="t-camera"><span></span></span></label><div class="divider"></div>` + imageCtls('t') + '<div class="divider"></div>' + gridCtls('t') + '<div class="divider"></div><p class="group-label" id="trPosLabel">Lage</p>' + positionCtls('t') +
+  '<div id="trLockArea"></div><button class="btn danger" id="trExit2"><svg class="i"><use href="#i-exit"/></svg>Abpaus-Modus beenden</button>';
+bindControls($('#trPanel'));
+
+/* ---------------- Editor ---------------- */
+function updateEditorChrome() {
+  const p = S.project; if (!p) return;
+  const lk = $('#edLock');
+  lk.classList.toggle('on', S.locked);
+  lk.querySelector('use').setAttribute('href', S.locked ? '#i-lock' : '#i-unlock');
+  lk.querySelector('span').textContent = S.locked ? 'Gesperrt' : 'Bild sperren';
+  $('#edHint').textContent = S.locked ? 'Bild ist gesperrt. Position, Größe und Drehung sind geschützt.' : 'Mit einem Finger verschieben, mit zwei Fingern zoomen und drehen.';
+  const fav = $('#edFav'); fav.style.color = p.favorite ? 'var(--star)' : ''; fav.querySelector('svg').style.fill = p.favorite ? 'currentColor' : 'none';
+  // Abpaus-Modus
+  const tl = $('#trLock');
+  tl.classList.toggle('on', S.locked);
+  tl.querySelector('use').setAttribute('href', S.locked ? '#i-lock' : '#i-unlock');
+  $('#trLockTxt').hidden = S.locked;
+  tl.setAttribute('aria-label', S.locked ? 'Bild gesperrt. Zum Entsperren gedrückt halten' : 'Bild sperren');
+  $('#trHint').hidden = S.locked || S.menuOpen;
+  $('#trExitBtn').hidden = S.locked;
+  $('#trLockWrap').classList.toggle('dimmed', S.locked);
+  $('#trTopRight').classList.toggle('dimmed', S.locked);
+  $('#trPosLabel').textContent = S.locked ? 'Lage (gesperrt)' : 'Lage';
+  $('#trLockArea').innerHTML = S.locked
+    ? '<button class="btn" id="trUnlockBtn" style="width:100%"><svg class="i"><use href="#i-unlock"/></svg>Bild entsperren</button>'
+    : '<button class="btn primary" id="trLockBtn" style="width:100%"><svg class="i"><use href="#i-lock"/></svg>Bild sperren</button>';
+  const ub = $('#trUnlockBtn'); if (ub) ub.onclick = confirmUnlock;
+  const lb = $('#trLockBtn'); if (lb) lb.onclick = () => { lockImage(); closeMenu(); };
+  $$('[data-pos]').forEach(f => f.disabled = S.locked);
+}
+function lockImage() { S.locked = true; vibrate(40); updateEditorChrome(); saveProjectNow(); toast('Bild gesperrt – es kann nicht mehr verrutschen'); }
+function unlockImage() { S.locked = false; vibrate([30, 40, 30]); updateEditorChrome(); saveProjectNow(); toast('Bild entsperrt'); }
+function confirmUnlock() {
+  dialog('Bild entsperren?', 'Danach lassen sich Position, Größe und Drehung wieder verändern.', [
+    { label: 'Abbrechen' }, { label: 'Entsperren', kind: 'primary', run: unlockImage }
+  ]);
+}
+$('#edLock').onclick = () => S.locked ? confirmUnlock() : lockImage();
+$('#edFav').onclick = () => { S.project.favorite = !S.project.favorite; updateEditorChrome(); saveProjectNow(); };
+$('#edBack').onclick = back;
+$('#startTrace').onclick = enterTrace;
+attachGestures($('#previewCanvas'), () => { if (S.locked) toast('Bild ist gesperrt'); });
+
+/* ---------------- Kamera ---------------- */
+const Cam = {
+  on: false, stream: null, torch: false,
+  async start() {
+    const note = $('#camNote');
+    note.hidden = true;
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      this.fail('Dieser Browser bietet hier keinen Kamerazugriff. Öffne TraceDraw über eine https-Adresse in Chrome oder Safari.');
+      return;
+    }
+    try {
+      this.stream = await navigator.mediaDevices.getUserMedia({
+        audio: false,
+        video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } }
+      });
+      const v = $('#cam');
+      v.srcObject = this.stream; v.hidden = false;
+      await v.play().catch(() => {});
+      this.on = true;
+      const track = this.stream.getVideoTracks()[0];
+      const caps = track && track.getCapabilities ? track.getCapabilities() : {};
+      $('#trTorch').hidden = !caps.torch;
+      track && track.addEventListener('ended', () => { if (S.view === 'trace' && prefs.camera) this.start(); });
+    } catch (e) {
+      const denied = e && (e.name === 'NotAllowedError' || e.name === 'SecurityError');
+      this.fail(denied
+        ? 'Kamerazugriff wurde nicht erlaubt. Erlaube die Kamera in den Browser-Einstellungen für diese Seite und starte den Abpaus-Modus neu.'
+        : 'Die Kamera konnte nicht gestartet werden. Ist sie gerade in einer anderen App geöffnet?');
+    }
+    this.sync(); draw();
+  },
+  fail(msg) {
+    this.stop();
+    const note = $('#camNote');
+    note.innerHTML = '<b>Kamera nicht verfügbar.</b> ' + msg + ' Du kannst trotzdem ohne Kamera abpausen (Handy unter das Blatt).';
+    note.hidden = false;
+    setTimeout(() => { note.hidden = true; }, 9000);
+  },
+  stop() {
+    if (this.stream) this.stream.getTracks().forEach(t => t.stop());
+    this.stream = null; this.on = false; this.torch = false;
+    const v = $('#cam'); v.srcObject = null; v.hidden = true;
+    $('#trTorch').hidden = true;
+    this.sync(); draw();
+  },
+  async setTorch(onOff) {
+    const track = this.stream && this.stream.getVideoTracks()[0];
+    if (!track) return;
+    try { await track.applyConstraints({ advanced: [{ torch: onOff }] }); this.torch = onOff; }
+    catch { toast('Taschenlampe nicht verfügbar'); }
+    this.sync();
+  },
+  sync() {
+    $('#trCamBtn').classList.toggle('on', this.on);
+    $('#trTorch').classList.toggle('on', this.torch);
+    const sw = $('#t-camera'); if (sw) sw.checked = prefs.camera;
+  }
+};
+$('#trCamBtn').onclick = () => { prefs.camera = !Cam.on; savePrefs(); prefs.camera ? Cam.start() : Cam.stop(); };
+$('#trTorch').onclick = () => Cam.setTorch(!Cam.torch);
+document.addEventListener('change', e => {
+  if (e.target.id !== 't-camera') return;
+  prefs.camera = e.target.checked; savePrefs();
+  prefs.camera ? Cam.start() : Cam.stop();
+});
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && S.view === 'trace' && prefs.camera && !Cam.on) Cam.start();
+});
+
+/* ---------------- Abpaus-Modus ---------------- */
+let wakeLock = null;
+async function requestWake() {
+  try { if ('wakeLock' in navigator) { wakeLock = await navigator.wakeLock.request('screen'); } } catch { wakeLock = null; }
+}
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && S.view === 'trace') requestWake(); });
+async function enterTrace() {
+  saveProjectNow();
+  S.menuOpen = false; $('#trSheet').classList.add('closed');
+  show('trace');
+  updateEditorChrome(); syncControls();
+  try {
+    const el = document.documentElement;
+    if (el.requestFullscreen && !document.fullscreenElement) await el.requestFullscreen({ navigationUI: 'hide' });
+    if (screen.orientation && screen.orientation.lock) await screen.orientation.lock(screen.orientation.type).catch(() => {});
+  } catch {}
+  requestWake();
+  if (prefs.camera) Cam.start(); else Cam.sync();
+  setTimeout(draw, 250);
+}
+function exitTrace(force) {
+  if (S.locked && !force) {
+    dialog('Abpaus-Modus beenden?', 'Die Bildposition bleibt gespeichert.', [
+      { label: 'Weiterzeichnen' }, { label: 'Beenden', kind: 'primary', run: () => exitTrace(true) }
+    ]);
+    return;
+  }
+  closeMenu();
+  Cam.stop();
+  try { wakeLock && wakeLock.release(); } catch {} wakeLock = null;
+  try { screen.orientation && screen.orientation.unlock && screen.orientation.unlock(); } catch {}
+  if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(() => {});
+  S.stack.pop();
+  saveProjectNow();
+  show('editor', false);
+}
+function openMenu() { S.menuOpen = true; $('#trSheet').classList.remove('closed'); updateEditorChrome(); syncControls(); }
+function closeMenu() { S.menuOpen = false; $('#trSheet').classList.add('closed'); updateEditorChrome(); }
+$('#trMenuBtn').onclick = openMenu;
+$('#trMenuClose').onclick = closeMenu;
+$('#trExitBtn').onclick = () => exitTrace();
+$('#trExit2').onclick = () => exitTrace();
+$('#trHintLock').onclick = lockImage;
+attachGestures($('#traceCanvas'), () => { if (S.menuOpen) closeMenu(); else if (S.locked) toast('Bild ist gesperrt'); });
+
+// Schloss: tippen = sperren, gedrückt halten = entsperren
+(() => {
+  const b = $('#trLock'); let timer = null, fired = false;
+  b.addEventListener('pointerdown', () => {
+    fired = false;
+    if (!S.locked) return;
+    b.classList.add('holding');
+    timer = setTimeout(() => { fired = true; b.classList.remove('holding'); unlockImage(); }, 900);
+  });
+  const cancel = () => { clearTimeout(timer); b.classList.remove('holding'); };
+  b.addEventListener('pointerup', cancel); b.addEventListener('pointerleave', cancel); b.addEventListener('pointercancel', cancel);
+  b.addEventListener('contextmenu', e => e.preventDefault());
+  b.addEventListener('click', () => {
+    if (fired) return;
+    if (S.locked) toast('Zum Entsperren gedrückt halten'); else lockImage();
+  });
+})();
+
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Escape') return;
+  if (!$('#modal').hidden) { $('#modal').hidden = true; return; }
+  if (S.view === 'trace') { if (S.menuOpen) closeMenu(); else exitTrace(); }
+});
+
+/* ---------------- Zuschneiden ---------------- */
+const C = { rect: null, k: 1, ox: 0, oy: 0 };
+function openCrop() {
+  const p = S.project;
+  C.rect = p.crop ? { ...p.crop } : { x: 0, y: 0, w: 1, h: 1 };
+  show('crop');
+  requestAnimationFrame(layoutCrop);
+}
+function layoutCrop() {
+  const area = $('#cropArea'), base = S.base;
+  const aw = area.clientWidth - 24, ah = area.clientHeight - 24;
+  C.k = Math.min(aw / base.width, ah / base.height);
+  const w = base.width * C.k, h = base.height * C.k;
+  C.ox = (area.clientWidth - w) / 2; C.oy = (area.clientHeight - h) / 2; C.w = w; C.h = h;
+  const cv = $('#cropCanvas'); const dpr = Math.min(devicePixelRatio || 1, 2);
+  cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr);
+  Object.assign(cv.style, { left: C.ox + 'px', top: C.oy + 'px', width: w + 'px', height: h + 'px' });
+  const ctx = cv.getContext('2d'); ctx.imageSmoothingQuality = 'high'; ctx.drawImage(base, 0, 0, cv.width, cv.height);
+  paintCrop();
+}
+function paintCrop() {
+  const r = C.rect;
+  const L = C.ox + r.x * C.w, T = C.oy + r.y * C.h, W = r.w * C.w, H = r.h * C.h;
+  Object.assign($('#cropFrame').style, { left: L + 'px', top: T + 'px', width: W + 'px', height: H + 'px' });
+  const pos = { tl: [L, T], tr: [L + W, T], bl: [L, T + H], br: [L + W, T + H] };
+  $$('#cropArea .h').forEach(h => { const [x, y] = pos[h.dataset.h]; h.style.left = x + 'px'; h.style.top = y + 'px'; });
+  $('#cropMeta').textContent = `${Math.round(r.w * S.base.width)} × ${Math.round(r.h * S.base.height)} px`;
+}
+(() => {
+  let drag = null;
+  const start = (e, mode) => {
+    e.preventDefault(); e.stopPropagation();
+    try { e.target.setPointerCapture(e.pointerId); } catch {}
+    drag = { mode, x: e.clientX, y: e.clientY, r: { ...C.rect } };
+  };
+  $('#cropFrame').addEventListener('pointerdown', e => start(e, 'move'));
+  $$('#cropArea .h').forEach(h => h.addEventListener('pointerdown', e => start(e, h.dataset.h)));
+  window.addEventListener('pointermove', e => {
+    if (!drag) return;
+    const dx = (e.clientX - drag.x) / C.w, dy = (e.clientY - drag.y) / C.h, s = drag.r;
+    const minW = 48 / C.w, minH = 48 / C.h;
+    let l = s.x, t = s.y, r = s.x + s.w, b = s.y + s.h;
+    if (drag.mode === 'move') { l = clamp(s.x + dx, 0, 1 - s.w); t = clamp(s.y + dy, 0, 1 - s.h); r = l + s.w; b = t + s.h; }
+    else {
+      if (drag.mode[1] === 'l') l = clamp(s.x + dx, 0, r - minW); else r = clamp(r + dx, l + minW, 1);
+      if (drag.mode[0] === 't') t = clamp(s.y + dy, 0, b - minH); else b = clamp(b + dy, t + minH, 1);
+    }
+    C.rect = { x: l, y: t, w: r - l, h: b - t }; paintCrop();
+  });
+  const end = () => { drag = null; };
+  window.addEventListener('pointerup', end); window.addEventListener('pointercancel', end);
+})();
+$('#cropAll').onclick = () => { C.rect = { x: 0, y: 0, w: 1, h: 1 }; paintCrop(); };
+$('#cropCancel').onclick = back;
+$('#cropBack').onclick = back;
+$('#cropApply').onclick = () => {
+  const r = C.rect, full = r.x < 0.001 && r.y < 0.001 && r.w > 0.999 && r.h > 0.999;
+  const p = S.project;
+  p.crop = full ? null : r;
+  S.src = cropCanvasFrom(S.base, p.crop); S.srcData = null; lastProcKey = '';
+  S.transform = { ...defaultTransform(), rotation: S.transform.rotation };
+  S.locked = false; S.past = []; updateUndo();
+  p.thumb = makeThumb(S.src);
+  processNow(); saveProjectNow();
+  back();
+};
+window.addEventListener('resize', () => { if (S.view === 'crop') layoutCrop(); });
+
+/* ---------------- Start, Liste, Einstellungen ---------------- */
+function cardHTML(p, opts = {}) {
+  return `<div class="card" data-id="${p.id}">
+    <button class="th" data-open="${p.id}" style="background-image:url('${p.thumb}')" aria-label="${p.name} öffnen"></button>
+    ${opts.badge ? `<span class="badge">${opts.badge}</span>` : `<button class="fav${p.favorite ? ' on' : ''}" data-fav="${p.id}" aria-label="${p.favorite ? 'Aus Favoriten entfernen' : 'Zu Favoriten hinzufügen'}"><svg class="i"><use href="#i-star"/></svg></button>`}
+    <span class="nm">${p.name.replace(/</g, '&lt;')}</span>
+    <span class="dt">${opts.badge ? 'Zum Ausprobieren' : fmtDate(p.lastUsed)}</span>
+    ${opts.del ? `<button class="btn danger" data-del="${p.id}" style="min-height:36px;font-size:13px;margin-top:6px">Löschen</button>` : ''}
+  </div>`;
+}
+function renderHome() {
+  const sorted = [...projects].sort((a, b) => b.lastUsed - a.lastUsed);
+  const sample = { id: '__sample', name: 'Berglandschaft', thumb: sampleThumb || '', lastUsed: Date.now() };
+  $('#recentRow').innerHTML = cardHTML(sample, { badge: 'Beispiel' }) + sorted.slice(0, 10).map(p => cardHTML(p)).join('');
+  $('#recentHint').textContent = storageOk ? '' : 'Speichern in diesem Browser nicht möglich';
+  const favs = sorted.filter(p => p.favorite);
+  $('#favWrap').hidden = favs.length === 0;
+  $('#favRow').innerHTML = favs.map(p => cardHTML(p)).join('');
+  $('#libCount').textContent = projects.length;
+}
+let libFilter = 'all';
+function renderLibrary() {
+  const list = [...projects].sort((a, b) => b.lastUsed - a.lastUsed).filter(p => libFilter === 'all' || p.favorite);
+  $$('#libFilter button').forEach(b => b.classList.toggle('on', b.dataset.f === libFilter));
+  $('#libFilter [data-f="all"]').textContent = `Alle (${projects.length})`;
+  $('#libGrid').innerHTML = list.length ? list.map(p => cardHTML(p, { del: true })).join('')
+    : `<div class="empty" style="grid-column:1/-1"><b>${libFilter === 'fav' ? 'Noch keine Favoriten' : 'Noch keine Bilder'}</b>${libFilter === 'fav' ? 'Tippe auf den Stern eines Bildes, um es hier zu sammeln.' : 'Wähle auf der Startseite ein Bild aus, um loszulegen.'}</div>`;
+}
+$('#libFilter').onclick = e => { const b = e.target.closest('[data-f]'); if (b) { libFilter = b.dataset.f; renderLibrary(); } };
+document.addEventListener('click', e => {
+  const o = e.target.closest('[data-open]');
+  if (o) { if (o.dataset.open === '__sample') openSample(); else { const p = projects.find(x => x.id === o.dataset.open); p && openProject(p); } return; }
+  const f = e.target.closest('[data-fav]');
+  if (f) { const p = projects.find(x => x.id === f.dataset.fav); if (p) { p.favorite = !p.favorite; if (storageOk) DB.put(serial(p)).catch(() => {}); S.view === 'home' ? renderHome() : renderLibrary(); } return; }
+  const d = e.target.closest('[data-del]');
+  if (d) {
+    const p = projects.find(x => x.id === d.dataset.del);
+    dialog('Bild löschen?', 'Das Bild und seine Einstellungen werden aus TraceDraw entfernt. Das Foto auf deinem Gerät bleibt erhalten.', [
+      { label: 'Abbrechen' },
+      { label: 'Löschen', kind: 'danger', run: () => { projects = projects.filter(x => x !== p); DB.del(p.id).catch(() => {}); renderLibrary(); } }
+    ]);
+  }
+});
+
+function renderSettings() {
+  const tr = $('#setTr'); tr.value = prefs.lastTr; paintRange(tr); $('#setTrVal').textContent = prefs.lastTr + ' %';
+  $$('#setBg button').forEach(b => b.classList.toggle('on', b.dataset.v === prefs.bg));
+  $$('#setGrid button').forEach(b => b.classList.toggle('on', b.dataset.v === prefs.grid));
+  $('#setHaptics').checked = prefs.haptics;
+  $('#setCam').checked = prefs.camera;
+  $('#storeInfo').textContent = storageOk
+    ? `${projects.length === 1 ? '1 Bild' : projects.length + ' Bilder'} in diesem Browser gespeichert. Bilder werden nie hochgeladen.`
+    : 'Dieser Browser erlaubt hier kein Speichern (z. B. privater Modus). Bilder gehen beim Schließen verloren.';
+  $('#clearAll').disabled = projects.length === 0;
+}
+$('#setTr').oninput = e => { prefs.lastTr = +e.target.value; paintRange(e.target); $('#setTrVal').textContent = prefs.lastTr + ' %'; savePrefs(); };
+$('#setBg').onclick = e => { const b = e.target.closest('[data-v]'); if (b) { prefs.bg = b.dataset.v; savePrefs(); renderSettings(); } };
+$('#setGrid').onclick = e => { const b = e.target.closest('[data-v]'); if (b) { prefs.grid = b.dataset.v; savePrefs(); renderSettings(); } };
+$('#setHaptics').onchange = e => { prefs.haptics = e.target.checked; savePrefs(); };
+$('#setCam').onchange = e => { prefs.camera = e.target.checked; savePrefs(); };
+$('#clearAll').onclick = () => dialog('Alle Bilder löschen?', 'Alle in TraceDraw gespeicherten Bilder und Favoriten werden entfernt. Fotos auf deinem Gerät bleiben erhalten.', [
+  { label: 'Abbrechen' },
+  { label: 'Alles löschen', kind: 'danger', run: () => { projects = []; DB.clear().catch(() => {}); renderSettings(); } }
+]);
+
+/* ---------------- Start ---------------- */
+(async () => {
+  try {
+    const all = await DB.all();
+    projects = (all || []).filter(p => p && p.blob && p.id);
+  } catch { storageOk = false; }
+  try {
+    const sb = await sampleBlob();
+    const img = await loadImage(sb);
+    sampleThumb = makeThumb(toBase(img));
+  } catch {}
+  renderHome();
+})();
+renderHome();
+})();
+</script>
