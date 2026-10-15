@@ -1,3 +1,17 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0A0A0F">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="TraceDraw">
+<link rel="icon" href="favicon.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="manifest" href="manifest.json">
+<style>body{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}</style>
 <title>TraceDraw</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -192,6 +206,20 @@ fieldset:disabled { opacity: .42; }
 #cam { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; background: #000; }
 .cam-note { position: absolute; z-index: 2; left: 16px; right: 16px; top: calc(env(safe-area-inset-top, 0px) + 70px); margin: 0 auto; max-width: 440px; background: var(--scrim); border: 1px solid var(--line); border-radius: var(--r-md); padding: 12px 14px; font-size: 13px; line-height: 1.45; color: var(--muted); }
 .cam-note b { color: var(--fg); }
+.cam-ask { position: absolute; inset: 0; z-index: 8; background: rgba(6,6,10,.88); display: grid; place-items: center; padding: 20px; overflow-y: auto; }
+.cam-ask-card { width: min(400px, 100%); background: var(--surface); border: 1px solid var(--line); border-radius: 24px; padding: 24px 20px 20px; display: flex; flex-direction: column; gap: 12px; text-align: center; }
+.cam-ask-card .ico { width: 64px; height: 64px; border-radius: 20px; margin: 0 auto 4px; display: grid; place-items: center; background: rgba(139,92,246,.16); color: var(--accent); }
+.cam-ask-card .ico svg { width: 30px; height: 30px; }
+.cam-ask-card.denied .ico { background: rgba(251,113,133,.14); color: var(--danger); }
+.cam-ask-card h3 { margin: 0; font-family: var(--font-display); font-size: 22px; font-weight: 800; text-wrap: balance; }
+.cam-ask-card p { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.5; }
+.cam-ask-card ol { margin: 4px 0 2px; padding: 12px 14px 12px 34px; text-align: left; background: var(--surface-2); border-radius: var(--r-md); font-size: 14px; line-height: 1.5; display: flex; flex-direction: column; gap: 6px; }
+.cam-ask-card ol b { color: var(--fg); }
+.cam-ask-card .link { display: flex; gap: 8px; align-items: center; background: var(--surface-2); border-radius: var(--r-md); padding: 8px 8px 8px 14px; text-align: left; }
+.cam-ask-card .link code { flex: 1; min-width: 0; font-size: 14px; color: var(--fg); user-select: all; -webkit-user-select: all; overflow-wrap: anywhere; }
+.cam-ask-card .link .btn { min-height: 40px; padding: 0 12px; font-size: 13px; }
+.cam-ask-card .safe { font-size: 12px; color: var(--dim); display: flex; gap: 6px; align-items: center; justify-content: center; }
+.cam-ask-card .safe svg { width: 14px; height: 14px; }
 .float { position: absolute; z-index: 3; display: flex; gap: 8px; transition: opacity .2s; }
 .float.tl { top: calc(env(safe-area-inset-top, 0px) + 12px); left: calc(env(safe-area-inset-left, 0px) + 12px); }
 .float.tr { top: calc(env(safe-area-inset-top, 0px) + 12px); right: calc(env(safe-area-inset-right, 0px) + 12px); }
@@ -260,6 +288,8 @@ fieldset:disabled { opacity: .42; }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
 
+</head>
+<body>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
   <symbol id="i-images" viewBox="0 0 24 24"><rect x="3" y="5" width="15" height="13" rx="2.5"/><path d="M7 3h11a3 3 0 0 1 3 3v9"/><circle cx="8.5" cy="9.5" r="1.5"/><path d="m3 16 4.5-4 4 3.5 2.5-2 4 3.5"/></symbol>
   <symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></symbol>
@@ -464,6 +494,18 @@ fieldset:disabled { opacity: .42; }
   <video id="cam" playsinline muted autoplay hidden></video>
   <canvas class="trace-canvas" id="traceCanvas" aria-label="Abpaus-Ansicht"></canvas>
   <div class="cam-note" id="camNote" hidden></div>
+  <div class="cam-ask" id="camAsk" hidden>
+    <div class="cam-ask-card" id="camAskCard" role="dialog" aria-modal="true" aria-labelledby="camAskTitle">
+      <div class="ico"><svg class="i"><use href="#i-camera"/></svg></div>
+      <h3 id="camAskTitle">Kamera erlauben</h3>
+      <p id="camAskText"></p>
+      <ol id="camAskSteps" hidden></ol>
+      <div class="link" id="camAskLink" hidden><code>https://matz594.github.io/tracedraw</code><button class="btn" id="camAskCopy">Kopieren</button></div>
+      <button class="btn primary big" id="camAskYes">Kamera erlauben</button>
+      <button class="btn" id="camAskNo">Ohne Kamera weiter</button>
+      <span class="safe"><svg class="i"><use href="#i-lock"/></svg>Das Kamerabild bleibt auf deinem Handy und wird nie gespeichert.</span>
+    </div>
+  </div>
   <div class="float tl" id="trLockWrap">
     <button class="lockchip" id="trLock"><span class="fill"></span><svg class="i" style="position:relative"><use href="#i-unlock"/></svg><span id="trLockTxt" style="position:relative">Bild sperren</span></button>
   </div>
@@ -1157,10 +1199,7 @@ const Cam = {
   async start() {
     const note = $('#camNote');
     note.hidden = true;
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      this.fail('Dieser Browser bietet hier keinen Kamerazugriff. Öffne TraceDraw über eine https-Adresse in Chrome oder Safari.');
-      return;
-    }
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return 'unsupported';
     try {
       if (this.stream) this.stream.getTracks().forEach(t => t.stop());
       const size = { width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 30 } };
@@ -1199,11 +1238,14 @@ const Cam = {
       track && track.addEventListener('ended', () => { if (S.view === 'trace' && prefs.camera) this.start(); });
     } catch (e) {
       const denied = e && (e.name === 'NotAllowedError' || e.name === 'SecurityError');
-      this.fail(denied
-        ? 'Kamerazugriff wurde nicht erlaubt. Erlaube die Kamera in den Browser-Einstellungen für diese Seite und starte den Abpaus-Modus neu.'
+      if (denied) { this.stop(); this.sync(); draw(); return 'denied'; }
+      this.fail(e && e.name === 'NotFoundError'
+        ? 'Auf diesem Gerät wurde keine Kamera gefunden.'
         : 'Die Kamera konnte nicht gestartet werden. Ist sie gerade in einer anderen App geöffnet?');
+      return 'error';
     }
     this.sync(); draw();
+    return this.on ? 'ok' : 'error';
   },
   fail(msg) {
     this.stop();
@@ -1269,16 +1311,100 @@ const Cam = {
     const sw = $('#t-camera'); if (sw) sw.checked = prefs.camera;
   }
 };
-$('#trCamBtn').onclick = () => { prefs.camera = !Cam.on; savePrefs(); prefs.camera ? Cam.start() : Cam.stop(); };
+/* ---------------- Kamera-Abfrage in der App ---------------- */
+const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const isEmbedded = (() => { try { return window.top !== window.self; } catch { return true; } })();
+const APP_URL = 'https://matz594.github.io/tracedraw';
+const CamAsk = {
+  mode: null, skipped: false, status: null,
+  async permState() {
+    try {
+      if (!navigator.permissions || !navigator.permissions.query) return null;
+      const st = await navigator.permissions.query({ name: 'camera' });
+      if (!this.status) {
+        this.status = st;
+        st.onchange = () => { if (st.state === 'granted' && this.mode && S.view === 'trace') { this.hide(); Cam.start(); } };
+      }
+      return st.state;
+    } catch { return null; }
+  },
+  show(mode) {
+    this.mode = mode;
+    const card = $('#camAskCard'), steps = $('#camAskSteps'), yes = $('#camAskYes');
+    card.classList.toggle('denied', mode !== 'prompt');
+    $('#camAskLink').hidden = mode !== 'blocked';
+    steps.hidden = mode !== 'denied';
+    yes.hidden = false;
+    if (mode === 'prompt') {
+      $('#camAskTitle').textContent = 'Kamera erlauben';
+      $('#camAskText').textContent = 'TraceDraw zeigt dir über die Rückkamera das Blatt unter dem Handy und legt dein Bild halbtransparent darüber. So kannst du auf das Handy schauen und auf dem Papier nachzeichnen.';
+      yes.innerHTML = '<svg class="i"><use href="#i-camera"/></svg>Kamera erlauben';
+    } else if (mode === 'denied') {
+      $('#camAskTitle').textContent = 'Kamera ist blockiert';
+      $('#camAskText').textContent = 'Du hast den Kamerazugriff für TraceDraw abgelehnt. So schaltest du ihn wieder frei:';
+      steps.innerHTML = isIOS
+        ? '<li>In der Adressleiste links auf <b>aA</b> tippen</li><li><b>Website-Einstellungen</b> öffnen</li><li>Bei <b>Kamera</b> auf <b>Erlauben</b> stellen</li><li>Unten auf <b>Neu laden</b> tippen</li>'
+        : '<li>In der Adressleiste links auf das <b>Schloss- oder Regler-Symbol</b> tippen</li><li><b>Berechtigungen</b> öffnen</li><li>Bei <b>Kamera</b> auf <b>Zulassen</b> stellen</li><li>Unten auf <b>Neu laden</b> tippen</li>';
+      if (isIOS) steps.innerHTML += '<li>Klappt es nicht: iPhone-Einstellungen → <b>Apps → Safari → Kamera</b> → <b>Erlauben</b></li>';
+      yes.innerHTML = '<svg class="i"><use href="#i-reset"/></svg>Neu laden';
+    } else {
+      $('#camAskTitle').textContent = 'Kamera hier nicht möglich';
+      $('#camAskText').textContent = isEmbedded
+        ? 'In dieser Vorschau sperrt die umgebende Seite die Kamera. Öffne TraceDraw direkt in Chrome oder Safari, dann fragt die App nach der Kamera:'
+        : 'Dieser Browser erlaubt hier keine Kamera. Öffne TraceDraw in Chrome oder Safari über diese Adresse:';
+      yes.hidden = true;
+    }
+    $('#camAsk').hidden = false;
+    (yes.hidden ? $('#camAskNo') : yes).focus();
+  },
+  hide() { this.mode = null; $('#camAsk').hidden = true; },
+  /* Wird beim Öffnen des Abpaus-Modus und beim Tippen auf die Kamera-Taste aufgerufen */
+  async request() {
+    if (isEmbedded || !window.isSecureContext || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      // In einer eingebetteten Vorschau zuerst einen echten Versuch machen – manche erlauben es doch
+      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.isSecureContext) {
+        const r = await Cam.start();
+        if (r === 'ok') return;
+      }
+      this.show('blocked'); return;
+    }
+    const st = await this.permState();
+    if (st === 'granted') { const r = await Cam.start(); if (r === 'denied') this.show('denied'); return; }
+    this.show(st === 'denied' ? 'denied' : 'prompt');
+  }
+};
+$('#camAskYes').onclick = async () => {
+  if (CamAsk.mode === 'denied') {
+    try { sessionStorage.setItem('td:resume', S.project ? S.project.id : ''); } catch {}
+    location.reload(); return;
+  }
+  CamAsk.hide();
+  prefs.camera = true; savePrefs();
+  const r = await Cam.start();          // löst die Abfrage des Systems aus
+  if (r === 'denied') CamAsk.show('denied');
+  else if (r === 'unsupported') CamAsk.show('blocked');
+};
+$('#camAskNo').onclick = () => {
+  CamAsk.hide(); CamAsk.skipped = true; Cam.sync();
+  toast('Ohne Kamera – einschalten über die Kamera-Taste oben rechts');
+};
+$('#camAskCopy').onclick = async () => {
+  try { await navigator.clipboard.writeText(APP_URL); toast('Adresse kopiert'); }
+  catch { const r = document.createRange(); r.selectNodeContents($('#camAskLink code')); const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r); toast('Adresse markiert – jetzt kopieren'); }
+};
+$('#trCamBtn').onclick = () => {
+  if (Cam.on) { prefs.camera = false; savePrefs(); Cam.stop(); return; }
+  prefs.camera = true; savePrefs(); CamAsk.skipped = false; CamAsk.request();
+};
 $('#trTorch').onclick = () => Cam.setTorch(!Cam.torch);
 document.addEventListener('click', e => { if (e.target.closest('#trCamSwitch')) Cam.next(); });
 document.addEventListener('change', e => {
   if (e.target.id !== 't-camera') return;
   prefs.camera = e.target.checked; savePrefs();
-  prefs.camera ? Cam.start() : Cam.stop();
+  if (prefs.camera) { CamAsk.skipped = false; CamAsk.request(); } else Cam.stop();
 });
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible' && S.view === 'trace' && prefs.camera && !Cam.on) Cam.start();
+  if (document.visibilityState === 'visible' && S.view === 'trace' && prefs.camera && !Cam.on && !CamAsk.skipped && !CamAsk.mode) CamAsk.request();
 });
 
 /* ---------------- Abpaus-Modus ---------------- */
@@ -1337,7 +1463,8 @@ async function enterTrace() {
   await new Promise(r => setTimeout(r, 350));
   if (S.view === 'trace') Stage.freeze();
   requestWake();
-  if (prefs.camera) Cam.start(); else Cam.sync();
+  CamAsk.skipped = false;
+  if (prefs.camera) CamAsk.request(); else Cam.sync();
   setTimeout(draw, 250);
 }
 function exitTrace(force) {
@@ -1348,6 +1475,7 @@ function exitTrace(force) {
     return;
   }
   closeMenu();
+  CamAsk.hide();
   Cam.stop();
   Stage.release();
   try { wakeLock && wakeLock.release(); } catch {} wakeLock = null;
@@ -1387,7 +1515,7 @@ attachGestures($('#traceCanvas'), () => { if (S.menuOpen) closeMenu(); else if (
 document.addEventListener('keydown', e => {
   if (e.key !== 'Escape') return;
   if (!$('#modal').hidden) { $('#modal').hidden = true; return; }
-  if (S.view === 'trace') { if (S.menuOpen) closeMenu(); else exitTrace(); }
+  if (S.view === 'trace') { if (CamAsk.mode) $('#camAskNo').click(); else if (S.menuOpen) closeMenu(); else exitTrace(); }
 });
 
 /* ---------------- Zuschneiden ---------------- */
@@ -1529,6 +1657,10 @@ $('#clearAll').onclick = () => dialog('Alle Bilder löschen?', 'Alle in TraceDra
     const all = await DB.all();
     projects = (all || []).filter(p => p && p.blob && p.id);
   } catch { storageOk = false; }
+  let resume = null;
+  try { resume = sessionStorage.getItem('td:resume'); sessionStorage.removeItem('td:resume'); } catch {}
+  const rp = resume && projects.find(p => p.id === resume);
+  if (rp) { await openProject(rp); enterTrace(); }
   try {
     const sb = await sampleBlob();
     const img = await loadImage(sb);
@@ -1539,3 +1671,6 @@ $('#clearAll').onclick = () => dialog('Alle Bilder löschen?', 'Alle in TraceDra
 renderHome();
 })();
 </script>
+
+</body>
+</html>
