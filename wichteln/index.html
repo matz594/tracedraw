@@ -124,6 +124,16 @@ input[type=date]{color-scheme:dark}
 .spoiler div{padding:10px 12px;background:#0d1017;border:1px solid var(--line);border-radius:10px;font-size:15px}
 .hidden{display:none!important}
 #confetti{position:fixed;inset:0;pointer-events:none;z-index:40}
+.sect-title{margin:30px 0 10px;font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);font-weight:700}
+.item{display:flex;align-items:center;gap:12px;padding:12px 12px 12px 14px;background:linear-gradient(180deg,var(--card),var(--bg2));border:1px solid var(--line);border-radius:14px;cursor:pointer;color:var(--text);margin-bottom:8px;transition:border-color .15s}
+.item:hover{border-color:var(--gold3)}
+.item .ic2{font-size:22px;width:42px;height:42px;border-radius:12px;display:grid;place-items:center;background:#0d1017;border:1px solid var(--line);flex:none}
+.item .meta{flex:1;min-width:0}
+.item .t{font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.item .s{font-size:13px;color:var(--muted);margin-top:2px}
+.warn{color:#f0c060}
+.ok{color:var(--green)}
+.savebox{border-color:#3a3320;background:linear-gradient(180deg,#17140c,var(--bg2))}
 </style>
 </head>
 <body>
@@ -139,8 +149,9 @@ input[type=date]{color-scheme:dark}
     <p class="sub" style="margin-top:12px">Lost aus, wer wen beschenkt – jede Person bekommt einen eigenen geheimen Link und sieht nur ihr eigenes Los. Nicht mal du als Organisator weißt, wer wen hat.</p>
     <div class="choices">
       <button class="choice" id="goJoin"><div class="ic">✉️</div><div><b>Ich habe einen Wichtel-Code</b><span>Nachricht oder Code einfügen und dein Los öffnen.</span></div></button>
-      <button class="choice" id="goOrg"><div class="ic">🎄</div><div><b>Wichteln organisieren</b><span>Gruppe anlegen, Teilnehmer eintragen, auslosen und Links verschicken.</span></div></button>
+      <button class="choice" id="goOrg"><div class="ic">🎄</div><div><b>Neue Runde organisieren</b><span>Gruppe anlegen, Teilnehmer eintragen, auslosen und Links verschicken.</span></div></button>
     </div>
+    <div id="startLists"></div>
   </section>
 
   <!-- JOIN -->
@@ -177,7 +188,7 @@ input[type=date]{color-scheme:dark}
   <!-- ORGANIZE -->
   <section id="vOrg" class="hidden">
     <h1>Wichteln <span class="gold">organisieren</span></h1>
-    <p class="sub" style="margin-top:10px">Wird automatisch in diesem Browser gespeichert.</p>
+    <p class="sub" style="margin-top:10px">Wird automatisch gespeichert – du findest die Runde jederzeit auf der Startseite wieder. Für andere Geräte: Organisator-Link unten sichern.</p>
 
     <div class="card">
       <div class="step">Schritt 1 · Gruppe</div>
@@ -222,14 +233,25 @@ input[type=date]{color-scheme:dark}
       <p class="sub">Schick jeder Person ihre eigene Nachricht. Wer wen hat, bleibt geheim – auch für dich.</p>
       <label for="appLink">Link zur Wichtel-App (kommt in jede Nachricht)</label>
       <input id="appLink" placeholder="https://…">
-      <div class="hint">Damit die anderen die App öffnen können, muss der Link geteilt sein. Der persönliche Code wird automatisch angehängt.</div>
+      <div class="hint">Öffentlicher Link – funktioniert für alle, auch ohne Anmeldung. Der persönliche Code wird automatisch angehängt.</div>
       <div class="sum" id="sum"></div>
       <div class="list" id="resList"></div>
       <div class="footer-acts">
         <button class="btn small" id="redrawBtn">🔄 Neu auslosen</button>
         <button class="btn small ghost" id="spoilBtn">👀 Auflösung</button>
-        <button class="btn small ghost danger" id="resetBtn">🗑 Alles löschen</button>
+        <button class="btn small ghost danger" id="resetBtn">🗑 Runde löschen</button>
       </div>
+    </div>
+
+    <div class="card savebox hidden" id="saveCard">
+      <div class="step">🔐 Runde sichern</div>
+      <h3>Dein Organisator-Link</h3>
+      <p class="hint">Damit öffnest du diese Runde später wieder – auf jedem Handy oder PC, auch wenn der Browser-Speicher gelöscht wurde. So kannst du z. B. Nachrichten nochmal verschicken. Schick ihn dir am besten selbst. <b style="color:var(--text)">Nicht weitergeben</b> – er enthält die Auslosung.</p>
+      <div class="footer-acts" style="margin-top:12px">
+        <button class="btn small primary" id="saveCopy">📋 Link kopieren</button>
+        <a class="btn small wa" id="saveWa" target="_blank" rel="noopener">An mich per WhatsApp</a>
+      </div>
+      <div class="hint" id="saveState"></div>
     </div>
   </section>
 </div>
@@ -280,6 +302,42 @@ function decodeLot(text){
     return{g:a[0],b:a[1],d:a[2],m:a[3],f:a[4],t:a[5],w:a[6]};}catch(e){return null;}
 }
 
+// ---- Organizer session codes (W2-) ----
+function sealBytes(prefix,plain,rand=Math.random){
+  const s0=Math.floor(rand()*256),s1=Math.floor(rand()*256);
+  const enc=xorStream(plain,s0,s1);const [c0,c1]=fnv16(plain);
+  const all=new Uint8Array(plain.length+4);
+  all[0]=s0;all[1]=s1;all.set(enc,2);all[all.length-2]=c0;all[all.length-1]=c1;
+  return prefix+b32enc(all);
+}
+function openBytes(body){
+  let all;try{all=b32dec(body);}catch(e){return null;}
+  if(all.length<6)return null;
+  const plain=xorStream(all.slice(2,all.length-2),all[0],all[1]);
+  const [c0,c1]=fnv16(plain);
+  if(c0!==all[all.length-2]||c1!==all[all.length-1])return null;
+  return plain;
+}
+async function zip(u8,mode){
+  const S=mode==='c'?CompressionStream:DecompressionStream;
+  const st=new S('deflate-raw');const w=st.writable.getWriter();w.write(u8);w.close();
+  return new Uint8Array(await new Response(st.readable).arrayBuffer());
+}
+function extractSession(text){const m=String(text||'').toUpperCase().match(/W2-([A-HJ-NP-Z2-9]{8,})/);return m?m[1]:null;}
+async function packSession(obj){
+  let data=new TextEncoder().encode(JSON.stringify(obj)),flag=0;
+  if(typeof CompressionStream!=='undefined'){try{const z=await zip(data,'c');if(z.length<data.length){data=z;flag=1;}}catch(e){}}
+  const all=new Uint8Array(data.length+1);all[0]=flag;all.set(data,1);
+  return sealBytes('W2-',all);
+}
+async function unpackSession(text){
+  const body=extractSession(text);if(!body)return null;
+  const all=openBytes(body);if(!all||!all.length)return null;
+  let data=all.slice(1);
+  if(all[0]===1){if(typeof DecompressionStream==='undefined')throw new Error('nozip');data=await zip(data,'d');}
+  try{const o=JSON.parse(new TextDecoder().decode(data));return o&&o.sid?o:null;}catch(e){return null;}
+}
+
 function shuffle(a,rand=Math.random){a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(rand()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
 // people: array of ids; excl: array of [a,b] (mutual); noPairs: bool -> returns {giver:receiver} or null
 function drawLots(people,excl,noPairs,rand=Math.random){
@@ -309,46 +367,109 @@ function drawLots(people,excl,noPairs,rand=Math.random){
 
 /* ---------- UI ---------- */
 const $=id=>document.getElementById(id);
-const STORE='wichteln.v1';
+const STORE='wichteln.v2', OLD_STORE='wichteln.v1';
 const DEFAULT_LINK='https://matz594.github.io/tracedraw/wichteln/';
-let S={group:{name:'',budget:'',date:'',msg:''},people:[],excl:[],noPairs:true,result:null,sent:{},appLink:DEFAULT_LINK};
-function load(){try{const raw=localStorage.getItem(STORE);if(raw){const d=JSON.parse(raw);S=Object.assign(S,d);}}catch(e){}if(!S.appLink||/claude\.ai\/artifact/.test(S.appLink))S.appLink=DEFAULT_LINK;}
-function save(){try{localStorage.setItem(STORE,JSON.stringify(S));}catch(e){}}
-const uid=()=>Math.random().toString(36).slice(2,9);
+const uid=()=>Math.random().toString(36).slice(2,9)+Date.now().toString(36).slice(-3);
+const newSession=()=>({id:uid(),created:Date.now(),updated:Date.now(),linkSaved:0,group:{name:'',budget:'',date:'',msg:''},people:[],excl:[],noPairs:true,result:null,sent:{}});
+let DB={sessions:{},current:null,lots:[],appLink:DEFAULT_LINK};
+let S=null;
+
+function load(){
+  try{
+    const raw=localStorage.getItem(STORE);
+    if(raw){DB=Object.assign(DB,JSON.parse(raw));}
+    else{const old=localStorage.getItem(OLD_STORE);
+      if(old){const d=JSON.parse(old);if(d&&d.people&&d.people.length){const s=Object.assign(newSession(),{group:d.group||{},people:d.people,excl:d.excl||[],noPairs:d.noPairs!==false,result:d.result||null,sent:d.sent||{}});DB.sessions[s.id]=s;}}}
+  }catch(e){}
+  if(!DB.appLink||/claude\.ai\/artifact/.test(DB.appLink))DB.appLink=DEFAULT_LINK;
+  if(!Array.isArray(DB.lots))DB.lots=[];
+  Object.values(DB.sessions).forEach(s=>s.people.forEach(p=>delete p._code));
+}
+function persist(){try{localStorage.setItem(STORE,JSON.stringify(DB));}catch(e){}}
+function save(){if(S){S.updated=Date.now();}persist();scheduleSaveLink();}
+
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const initials=n=>n.trim().split(/\s+/).map(w=>w[0]).slice(0,2).join('').toUpperCase();
-function fmtDate(d){if(!d)return'';try{const [y,m,dd]=d.split('-').map(Number);return new Date(y,m-1,dd).toLocaleDateString('de-DE',{weekday:'long',day:'numeric',month:'long',year:'numeric'});}catch(e){return d;}}
+function fmtDate(d,short){if(!d)return'';try{const [y,m,dd]=d.split('-').map(Number);return new Date(y,m-1,dd).toLocaleDateString('de-DE',short?{day:'numeric',month:'short',year:'numeric'}:{weekday:'long',day:'numeric',month:'long',year:'numeric'});}catch(e){return d;}}
+function ago(t){const m=Math.round((Date.now()-t)/60000);if(m<1)return'gerade eben';if(m<60)return'vor '+m+' Min.';const h=Math.round(m/60);if(h<24)return'vor '+h+' Std.';const d=Math.round(h/24);return d===1?'gestern':'vor '+d+' Tagen';}
 
-function toast(t){const el=$('toast');el.textContent=t;el.classList.add('show');clearTimeout(toast._t);toast._t=setTimeout(()=>el.classList.remove('show'),2200);}
-
+function toast(t){const el=$('toast');el.textContent=t;el.classList.add('show');clearTimeout(toast._t);toast._t=setTimeout(()=>el.classList.remove('show'),2400);}
 function modal(title,bodyNode,actions){
   $('mTitle').textContent=title;const b=$('mBody');b.innerHTML='';if(bodyNode)b.appendChild(bodyNode);
   const a=$('mActs');a.innerHTML='';
-  actions.forEach(([label,cls,fn])=>{const bt=document.createElement('button');bt.className='btn '+(cls||'');bt.textContent=label;bt.onclick=()=>{if(fn&&fn()===false)return;closeModal();};a.appendChild(bt);});
+  actions.forEach(([label,cls,fn])=>{const bt=document.createElement('button');bt.className='btn '+(cls||'');bt.textContent=label;bt.onclick=()=>{closeModal();if(fn)fn();};a.appendChild(bt);});
   $('modal').classList.add('show');
 }
 function closeModal(){$('modal').classList.remove('show');}
 $('modal').addEventListener('click',e=>{if(e.target.id==='modal')closeModal();});
 function confirmBox(title,text,okLabel,fn){const p=document.createElement('p');p.className='sub';p.textContent=text;modal(title,p,[['Abbrechen','ghost'],[okLabel,'primary',fn]]);}
+async function copyText(t){try{await navigator.clipboard.writeText(t);return true;}catch(e){return false;}}
+function manualCopy(title,text){
+  const ta=document.createElement('textarea');ta.value=text;ta.readOnly=true;
+  modal(title,ta,[['Schließen','primary']]);setTimeout(()=>{ta.focus();ta.select();},50);
+  const h=document.createElement('div');h.className='hint';h.textContent='Text markieren und kopieren.';$('mBody').appendChild(h);
+}
+function clearHash(){try{if(location.hash)history.replaceState(null,'',location.pathname+location.search);}catch(e){}}
 
 /* views */
 const views=['vStart','vJoin','vReveal','vOrg'];
 function show(v){views.forEach(x=>$(x).classList.toggle('hidden',x!==v));$('homeBtn').classList.toggle('hidden',v==='vStart');window.scrollTo({top:0,behavior:'smooth'});}
-$('homeBtn').onclick=()=>{try{if(location.hash)history.replaceState(null,'',location.pathname+location.search);}catch(e){}show('vStart');};
-$('goJoin').onclick=()=>{show('vJoin');setTimeout(()=>$('codeIn').focus(),200);};
-$('goOrg').onclick=()=>{renderOrg();show('vOrg');};
+function goStart(){clearHash();renderStart();show('vStart');}
+$('homeBtn').onclick=goStart;
+$('goJoin').onclick=()=>{$('codeIn').value='';$('codeErr').textContent='';show('vJoin');setTimeout(()=>$('codeIn').focus(),200);};
+$('goOrg').onclick=()=>{const s=newSession();DB.sessions[s.id]=s;openSession(s.id);};
+
+/* ---------- START: saved rounds & lots ---------- */
+function sessionStatus(s){
+  const n=s.people.length;
+  if(!s.result)return n+' Personen · noch nicht ausgelost';
+  const sent=s.people.filter(p=>s.sent[p.id]).length;
+  return n+' Personen · ausgelost · '+sent+'/'+n+' verschickt';
+}
+function makeItem(icon,title,sub,onOpen,onDel){
+  const el=document.createElement('div');el.className='item';el.tabIndex=0;el.setAttribute('role','button');
+  el.innerHTML='<div class="ic2"></div><div class="meta"><div class="t"></div><div class="s"></div></div><button class="x" title="Entfernen">×</button>';
+  el.querySelector('.ic2').textContent=icon;el.querySelector('.t').textContent=title;el.querySelector('.s').textContent=sub;
+  el.onclick=onOpen;el.onkeydown=e=>{if(e.key==='Enter')onOpen();};
+  el.querySelector('.x').onclick=e=>{e.stopPropagation();onDel();};
+  return el;
+}
+function renderStart(){
+  const box=$('startLists');box.innerHTML='';
+  // drop empty, untouched rounds
+  Object.values(DB.sessions).forEach(s=>{if(!s.people.length&&!s.group.name.trim())delete DB.sessions[s.id];});persist();
+  const sess=Object.values(DB.sessions).sort((a,b)=>b.updated-a.updated);
+  if(sess.length){
+    const h=document.createElement('div');h.className='sect-title';h.textContent='Deine Runden (Organisator)';box.appendChild(h);
+    sess.forEach(s=>box.appendChild(makeItem('🎄',s.group.name.trim()||'Unbenannte Runde',sessionStatus(s)+' · '+ago(s.updated),()=>openSession(s.id),
+      ()=>confirmBox('Runde löschen?','„'+(s.group.name.trim()||'Unbenannte Runde')+'“ wird von diesem Gerät gelöscht. Mit einem gesicherten Organisator-Link kannst du sie wiederherstellen.','Löschen',()=>{delete DB.sessions[s.id];persist();renderStart();}))));
+  }
+  if(DB.lots.length){
+    const h=document.createElement('div');h.className='sect-title';h.textContent='Deine Lose';box.appendChild(h);
+    DB.lots.slice().sort((a,b)=>b.at-a.at).forEach(l=>box.appendChild(makeItem('🎁',l.g||'Wichteln','Für '+(l.f||'dich')+(l.d?' · Bescherung '+fmtDate(l.d,true):''),()=>{const lot=decodeLot(l.code);if(lot)openLot(lot,l.code);},
+      ()=>confirmBox('Los entfernen?','Das Los wird nur von diesem Gerät entfernt. Über deinen Wichtel-Link kannst du es jederzeit wieder öffnen.','Entfernen',()=>{DB.lots=DB.lots.filter(x=>x!==l);persist();renderStart();}))));
+  }
+}
 
 /* ---------- JOIN / REVEAL ---------- */
-function openLot(lot){
+function rememberLot(lot,code){
+  const key=(lot.g||'')+'|'+(lot.f||'');
+  DB.lots=DB.lots.filter(l=>((l.g||'')+'|'+(l.f||''))!==key);
+  DB.lots.push({code:code,g:lot.g,f:lot.f,d:lot.d,at:Date.now()});
+  persist();
+}
+function openLot(lot,code){
+  if(code)rememberLot(lot,code);
   $('rvGroup').textContent=lot.g||'Wichteln';
   $('rvHello').innerHTML='Hallo <span class="gold">'+esc(lot.f||'du')+'</span>!';
   $('rvWho').textContent=lot.t;
   const d=$('rvDetails');d.innerHTML='';
-  const add=(i,label,text)=>{if(!text)return;const el=document.createElement('div');el.className='detail';el.innerHTML='<div class="i">'+i+'</div><div><b>'+label+'</b><p></p></div>';el.querySelector('p').textContent=text;d.appendChild(el);};
+  const add=(i,label,text)=>{if(!text)return;const el=document.createElement('div');el.className='detail';el.innerHTML='<div class="i">'+i+'</div><div><b></b><p></p></div>';el.querySelector('b').textContent=label;el.querySelector('p').textContent=text;d.appendChild(el);};
   add('💡','Wunsch / Hinweis von '+lot.t,lot.w);
   add('💶','Budget',lot.b);
   add('📅','Bescherung',fmtDate(lot.d));
   add('📝','Nachricht vom Organisator',lot.m);
+  const note=document.createElement('div');note.className='hint';note.style.textAlign='center';note.textContent='💾 Dein Los ist auf diesem Gerät gespeichert – du findest es jederzeit auf der Startseite unter „Deine Lose“.';d.appendChild(note);
   $('gift').classList.remove('open');$('target').classList.remove('show');$('tapHint').classList.remove('hidden');
   show('vReveal');
 }
@@ -360,16 +481,77 @@ function openGift(){
 $('gift').onclick=openGift;
 $('gift').onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();openGift();}};
 $('hideAgain').onclick=()=>{$('gift').classList.remove('open');$('target').classList.remove('show');$('tapHint').classList.remove('hidden');};
-$('openCode').onclick=()=>{
-  const lot=decodeLot($('codeIn').value);
+$('openCode').onclick=async()=>{
+  const txt=$('codeIn').value;
+  if(extractSession(txt)){const ok=await importSession(txt);if(!ok)$('codeErr').textContent='Organisator-Link konnte nicht gelesen werden.';return;}
+  const lot=decodeLot(txt);
   if(!lot){$('codeErr').textContent='Kein gültiger Code gefunden. Bitte die komplette Nachricht einfügen.';return;}
-  $('codeErr').textContent='';openLot(lot);
+  $('codeErr').textContent='';openLot(lot,PREFIX+extractCode(txt));
 };
 $('codeIn').addEventListener('input',()=>{$('codeErr').textContent='';});
 
+/* ---------- ORGANIZER SESSION LINK ---------- */
+function sessionToObj(s){
+  const idx={};s.people.forEach((p,i)=>idx[p.id]=i);
+  return{v:1,sid:s.id,c:s.created,u:s.updated,g:[s.group.name||'',s.group.budget||'',s.group.date||'',s.group.msg||''],
+    p:s.people.map(p=>[p.name,p.wish||'']),x:s.excl.map(([a,b])=>[idx[a],idx[b]]).filter(([a,b])=>a!=null&&b!=null),
+    np:s.noPairs?1:0,r:s.result?s.people.map(p=>idx[s.result[p.id]]):null,
+    s:s.people.map((p,i)=>s.sent[p.id]?i:-1).filter(i=>i>=0)};
+}
+function objToSession(o){
+  const people=(o.p||[]).map(([n,w])=>({id:uid(),name:String(n),wish:String(w||'')}));
+  const s=newSession();
+  s.id=o.sid;s.created=o.c||Date.now();s.updated=o.u||Date.now();s.linkSaved=s.updated;
+  const g=o.g||[];s.group={name:g[0]||'',budget:g[1]||'',date:g[2]||'',msg:g[3]||''};
+  s.people=people;s.noPairs=!!o.np;
+  s.excl=(o.x||[]).filter(([a,b])=>people[a]&&people[b]).map(([a,b])=>[people[a].id,people[b].id]);
+  if(Array.isArray(o.r)&&o.r.length===people.length&&o.r.every(i=>people[i])){s.result={};people.forEach((p,i)=>s.result[p.id]=people[o.r[i]].id);}
+  (o.s||[]).forEach(i=>{if(people[i])s.sent[people[i].id]=true;});
+  return s;
+}
+function orgLink(code){return(DB.appLink||DEFAULT_LINK).replace(/#.*$/,'')+'#'+code;}
+let saveLinkTimer=null,currentSaveLink='';
+function scheduleSaveLink(){clearTimeout(saveLinkTimer);saveLinkTimer=setTimeout(updateSaveLink,350);}
+async function updateSaveLink(){
+  if(!S||!S.people.length){$('saveCard').classList.add('hidden');return;}
+  $('saveCard').classList.remove('hidden');
+  try{currentSaveLink=orgLink(await packSession(sessionToObj(S)));}catch(e){currentSaveLink='';}
+  const msg='🔐 Mein Organisator-Link für „'+(S.group.name.trim()||'Wichteln')+'“ (nicht weitergeben!):\n'+currentSaveLink;
+  $('saveWa').href='https://wa.me/?text='+encodeURIComponent(msg);
+  const st=$('saveState');
+  if(!S.linkSaved){st.className='hint warn';st.textContent='⚠️ Noch nicht gesichert.';}
+  else if(S.updated>S.linkSaved+1500){st.className='hint warn';st.textContent='⚠️ Seit dem letzten Sichern geändert – Link neu sichern, damit alles drin ist.';}
+  else{st.className='hint ok';st.textContent='✓ Gesichert '+ago(S.linkSaved)+'.';}
+}
+function markLinkSaved(){S.linkSaved=Date.now();S.updated=S.linkSaved;persist();updateSaveLink();}
+$('saveCopy').onclick=async()=>{
+  if(!currentSaveLink)await updateSaveLink();
+  if(await copyText(currentSaveLink))toast('Organisator-Link kopiert – gut aufheben!');
+  else manualCopy('Dein Organisator-Link',currentSaveLink);
+  markLinkSaved();
+};
+$('saveWa').addEventListener('click',()=>setTimeout(markLinkSaved,300));
+
+async function importSession(text){
+  let o;try{o=await unpackSession(text);}catch(e){toast('Dein Browser ist zu alt für diesen Link.');return false;}
+  if(!o)return false;
+  const local=DB.sessions[o.sid];
+  if(local&&local.updated>(o.u||0)+1500){
+    clearHash();openSession(o.sid);toast('Auf diesem Gerät gibt es eine neuere Version – die wird angezeigt.');return true;
+  }
+  const s=objToSession(o);DB.sessions[s.id]=s;persist();clearHash();openSession(s.id);toast('Runde wiederhergestellt ✓');
+  return true;
+}
+
 /* ---------- ORGANIZE ---------- */
-function bindField(id,get,set){const el=$(id);el.value=get();el.oninput=()=>{set(el.value);invalidate();save();};}
-function invalidate(){if(S.result){S.result=null;S.sent={};$('resCard').classList.add('hidden');toast('Änderung – bitte neu auslosen');}}
+function openSession(id){
+  S=DB.sessions[id];if(!S)return goStart();
+  DB.current=id;persist();
+  $('orgErr').textContent='';$('pName').value='';
+  renderOrg();show('vOrg');updateSaveLink();
+}
+function bindField(id,get,set){const el=$(id);el.value=get();el.oninput=()=>{set(el.value);save();if(S.result)renderResult();};}
+function invalidate(){if(S.result){S.result=null;S.sent={};$('resCard').classList.add('hidden');toast('Teilnehmer/Regeln geändert – bitte neu auslosen');}}
 
 function renderOrg(){
   bindField('gName',()=>S.group.name,v=>S.group.name=v);
@@ -388,20 +570,24 @@ function renderPeople(){
     el.querySelector('.avatar').textContent=initials(p.name);
     el.querySelector('.name').textContent=p.name;
     const w=el.querySelector('.wish');w.value=p.wish||'';
-    w.oninput=()=>{p.wish=w.value;save();if(S.result)renderResult();};
-    el.querySelector('.x').onclick=()=>{S.people=S.people.filter(x=>x.id!==p.id);S.excl=S.excl.filter(([a,b])=>a!==p.id&&b!==p.id);invalidate();save();renderPeople();renderExcl();};
+    w.oninput=()=>{p.wish=w.value;save();};
+    el.querySelector('.x').onclick=()=>{
+      const go=()=>{S.people=S.people.filter(x=>x.id!==p.id);S.excl=S.excl.filter(([a,b])=>a!==p.id&&b!==p.id);invalidate();save();renderPeople();renderExcl();};
+      if(S.result)confirmBox(p.name+' entfernen?','Die Auslosung wird dadurch ungültig und muss wiederholt werden.','Entfernen',go);else go();
+    };
     L.appendChild(el);
   });
   const opts='<option value="">Person wählen…</option>'+S.people.map(p=>'<option value="'+p.id+'">'+esc(p.name)+'</option>').join('');
   $('exA').innerHTML=opts;$('exB').innerHTML=opts;
-  $('drawBtn').textContent=S.people.length?'🎲 Jetzt auslosen ('+S.people.length+' Personen)':'🎲 Jetzt auslosen';
+  $('drawBtn').textContent=S.people.length?'🎲 '+(S.result?'Neu auslosen':'Jetzt auslosen')+' ('+S.people.length+' Personen)':'🎲 Jetzt auslosen';
 }
 function addPerson(){
   const inp=$('pName');const name=inp.value.trim().replace(/\s+/g,' ');
   if(!name)return;
   if(S.people.some(p=>p.name.toLowerCase()===name.toLowerCase())){toast('„'+name+'“ ist schon dabei');return;}
   if(S.people.length>=60){toast('Maximal 60 Personen');return;}
-  S.people.push({id:uid(),name,wish:''});inp.value='';invalidate();save();renderPeople();inp.focus();
+  const go=()=>{S.people.push({id:uid(),name,wish:''});inp.value='';invalidate();save();renderPeople();inp.focus();};
+  if(S.result)confirmBox(name+' hinzufügen?','Die Auslosung wird dadurch ungültig und muss wiederholt werden.','Hinzufügen',go);else go();
 }
 $('pAdd').onclick=addPerson;
 $('pName').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();addPerson();}});
@@ -413,7 +599,7 @@ function renderExcl(){
     const c=document.createElement('span');c.className='chip';
     c.innerHTML='<span></span><button title="Entfernen">×</button>';
     c.firstChild.textContent=nm(pair[0])+' ↔ '+nm(pair[1]);
-    c.querySelector('button').onclick=()=>{S.excl.splice(i,1);invalidate();save();renderExcl();};
+    c.querySelector('button').onclick=()=>{S.excl.splice(i,1);invalidate();save();renderExcl();renderPeople();};
     L.appendChild(c);
   });
 }
@@ -422,21 +608,20 @@ $('exAdd').onclick=()=>{
   if(!a||!b){toast('Bitte zwei Personen wählen');return;}
   if(a===b){toast('Zwei verschiedene Personen wählen');return;}
   if(S.excl.some(([x,y])=>(x===a&&y===b)||(x===b&&y===a))){toast('Gibt es schon');return;}
-  S.excl.push([a,b]);invalidate();save();renderExcl();$('exA').value='';$('exB').value='';
+  S.excl.push([a,b]);invalidate();save();renderExcl();renderPeople();$('exA').value='';$('exB').value='';
 };
-$('noPairs').onchange=e=>{S.noPairs=e.target.checked;invalidate();save();};
+$('noPairs').onchange=e=>{S.noPairs=e.target.checked;invalidate();save();renderPeople();};
 
 function doDraw(){
   $('orgErr').textContent='';
   if(S.people.length<3){$('orgErr').textContent='Ihr braucht mindestens 3 Personen.';return;}
   const res=drawLots(S.people.map(p=>p.id),S.excl,S.noPairs);
   if(!res){$('orgErr').textContent='Mit diesen Regeln ist keine Auslosung möglich. Entferne ein paar Ausschlüsse oder die Tauschpaar-Regel.';return;}
-  S.result=res;S.sent={};save();renderResult();
-  $('resCard').classList.remove('hidden');
+  S.result=res;S.sent={};save();renderResult();renderPeople();
   setTimeout(()=>$('resCard').scrollIntoView({behavior:'smooth',block:'start'}),60);
   burst();
 }
-$('drawBtn').onclick=()=>{if(S.result){confirmBox('Neu auslosen?','Es gibt schon eine Auslosung. Bereits verschickte Codes werden dann ungültig (die alten Lose passen nicht mehr).','Neu auslosen',doDraw);}else doDraw();};
+$('drawBtn').onclick=()=>{if(S.result){confirmBox('Neu auslosen?','Es gibt schon eine Auslosung. Bereits verschickte Nachrichten zeigen dann das alte Los – du musst allen neue schicken.','Neu auslosen',doDraw);}else doDraw();};
 $('redrawBtn').onclick=$('drawBtn').onclick;
 
 function lotFor(p){
@@ -444,22 +629,15 @@ function lotFor(p){
   return{g:S.group.name.trim(),b:S.group.budget.trim(),d:S.group.date,m:S.group.msg.trim(),f:p.name,t:t.name,w:(t.wish||'').trim()};
 }
 function messageFor(p){
-  if(!p._code)p._code=encodeLot(lotFor(p));
-  const code=p._code;const link=(S.appLink||'').trim();
+  const code=encodeLot(lotFor(p));const link=(DB.appLink||'').trim();
   const g=S.group.name.trim();
   let m='🎁 '+(g?'Wichteln: '+g:'Wichteln')+'\n\nHallo '+p.name+'! Die Lose sind gezogen 🎄\n';
-  if(link){m+='Hier siehst du, wen du beschenkst:\n'+link.replace(/#.*$/,'')+'#'+code+'\n\nFalls dein Los nicht direkt erscheint: Link öffnen, „Ich habe einen Wichtel-Code“ tippen und diese Nachricht einfügen.';}
+  if(link){m+='Hier siehst du, wen du beschenkst:\n'+link.replace(/#.*$/,'')+'#'+code+'\n\nDein Los wird auf deinem Handy gespeichert. Falls es nicht direkt erscheint: Link öffnen, „Ich habe einen Wichtel-Code“ tippen und diese Nachricht einfügen.';}
   else{m+='Öffne die Wichtel-App, tippe auf „Ich habe einen Wichtel-Code“ und füge diese Nachricht ein.\n\nDein Code:\n'+code;}
   if(S.group.budget.trim())m+='\n\n💶 Budget: '+S.group.budget.trim();
   if(S.group.date)m+='\n📅 Bescherung: '+fmtDate(S.group.date);
   m+='\n\n🤫 Nicht verraten!';
   return m;
-}
-async function copyText(t){try{await navigator.clipboard.writeText(t);return true;}catch(e){return false;}}
-function manualCopy(title,text){
-  const ta=document.createElement('textarea');ta.value=text;ta.readOnly=true;
-  modal(title,ta,[['Schließen','primary']]);setTimeout(()=>{ta.focus();ta.select();},50);
-  const h=document.createElement('div');h.className='hint';h.textContent='Text markieren und kopieren.';$('mBody').appendChild(h);
 }
 function markSent(p){S.sent[p.id]=true;save();renderResult();}
 
@@ -467,10 +645,8 @@ function renderResult(){
   const card=$('resCard');
   if(!S.result){card.classList.add('hidden');return;}
   card.classList.remove('hidden');
-  const al=$('appLink');al.value=S.appLink||'';
-  al.oninput=()=>{S.appLink=al.value;save();};
-  // drop cached codes so wish/group changes are reflected
-  S.people.forEach(p=>{delete p._code;});
+  const al=$('appLink');al.value=DB.appLink||'';
+  al.oninput=()=>{DB.appLink=al.value;persist();};
   const sum=$('sum');sum.innerHTML='';
   const pill=t=>{const s=document.createElement('span');s.className='pill';s.textContent=t;sum.appendChild(s);};
   pill(S.people.length+' Personen');if(S.group.budget.trim())pill('💶 '+S.group.budget.trim());if(S.group.date)pill('📅 '+fmtDate(S.group.date));
@@ -484,9 +660,6 @@ function renderResult(){
     const st=el.querySelector('.status');st.textContent=S.sent[p.id]?'✓ verschickt':'noch nicht verschickt';if(S.sent[p.id])st.classList.add('sent');
     el.querySelector('.cp').onclick=async()=>{const m=messageFor(p);if(await copyText(m)){toast('Nachricht für '+p.name+' kopiert');markSent(p);}else{manualCopy('Nachricht für '+p.name,m);markSent(p);}};
     const wa=el.querySelector('.wa');
-    wa.addEventListener('mousedown',()=>{wa.href='https://wa.me/?text='+encodeURIComponent(messageFor(p));});
-    wa.addEventListener('touchstart',()=>{wa.href='https://wa.me/?text='+encodeURIComponent(messageFor(p));},{passive:true});
-    wa.addEventListener('focus',()=>{wa.href='https://wa.me/?text='+encodeURIComponent(messageFor(p));});
     wa.href='https://wa.me/?text='+encodeURIComponent(messageFor(p));
     wa.addEventListener('click',()=>{setTimeout(()=>markSent(p),300);});
     L.appendChild(el);
@@ -494,16 +667,13 @@ function renderResult(){
 }
 $('spoilBtn').onclick=()=>{
   confirmBox('Auflösung anzeigen?','Achtung Spoiler: Damit siehst du, wer wen beschenkt. Nur benutzen, wenn wirklich nötig.','Zeigen',()=>{
-    setTimeout(()=>{
-      const box=document.createElement('div');box.className='spoiler';
-      S.people.forEach(p=>{const t=S.people.find(x=>x.id===S.result[p.id]);const d=document.createElement('div');d.textContent=p.name+'  →  '+t.name;box.appendChild(d);});
-      modal('Auflösung 👀',box,[['Schließen','primary']]);
-    },50);
+    const box=document.createElement('div');box.className='spoiler';
+    S.people.forEach(p=>{const t=S.people.find(x=>x.id===S.result[p.id]);const d=document.createElement('div');d.textContent=p.name+'  →  '+t.name;box.appendChild(d);});
+    modal('Auflösung 👀',box,[['Schließen','primary']]);
   });
 };
-$('resetBtn').onclick=()=>confirmBox('Alles löschen?','Gruppe, Teilnehmer und Auslosung werden aus diesem Browser gelöscht.','Löschen',()=>{
-  const link=S.appLink;
-  S={group:{name:'',budget:'',date:'',msg:''},people:[],excl:[],noPairs:true,result:null,sent:{},appLink:link};save();renderOrg();toast('Gelöscht');
+$('resetBtn').onclick=()=>confirmBox('Runde löschen?','Die Runde wird von diesem Gerät gelöscht. Mit einem gesicherten Organisator-Link kannst du sie wiederherstellen.','Löschen',()=>{
+  delete DB.sessions[S.id];S=null;persist();goStart();toast('Runde gelöscht');
 });
 
 /* ---------- snow & confetti ---------- */
@@ -526,13 +696,16 @@ function burst(){
 
 /* ---------- boot ---------- */
 load();
-function checkHash(){
+async function checkHash(){
   const h=(location.hash||'').slice(1);
-  if(h){const lot=decodeLot(h);if(lot){openLot(lot);return true;}}
+  if(!h)return false;
+  if(extractSession(h)){return await importSession(h);}
+  const lot=decodeLot(h);
+  if(lot){openLot(lot,PREFIX+extractCode(h));return true;}
   return false;
 }
-if(!checkHash()){show('vStart');}
-addEventListener('hashchange',checkHash);
+checkHash().then(ok=>{if(!ok){renderStart();show('vStart');}});
+addEventListener('hashchange',()=>{checkHash();});
 </script>
 </body>
 </html>
